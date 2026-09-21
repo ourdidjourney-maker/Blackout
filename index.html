@@ -6,8 +6,8 @@
 <title>BLACKOUT</title>
 <style>
 :root{
-  --ink:#8dffa6; --dim:#3f8f55; --faint:#1d3a25; --amber:#ffb347; --red:#ff5a4e;
-  --bg:#040604; --panel:#070b07; --edge:#1a2a1c;
+  --ink:#a8ffbb; --dim:#6fcf8a; --faint:#2e5a3b; --amber:#ffb347; --red:#ff5a4e;
+  --bg:#050805; --panel:#0a120b; --edge:#2f5236;
   --mono:"Courier New",ui-monospace,Consolas,monospace;
 }
 *{box-sizing:border-box}
@@ -17,10 +17,10 @@ body{overflow:hidden}
 
 /* the glass of an old tube: scanlines, a slow roll, and a vignette */
 body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;
-  background:repeating-linear-gradient(to bottom,rgba(0,0,0,.28) 0,rgba(0,0,0,.28) 1px,transparent 1px,transparent 3px);
+  background:repeating-linear-gradient(to bottom,rgba(0,0,0,.16) 0,rgba(0,0,0,.16) 1px,transparent 1px,transparent 3px);
   mix-blend-mode:multiply}
 body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:51;
-  background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.72) 100%)}
+  background:radial-gradient(ellipse at center,transparent 62%,rgba(0,0,0,.5) 100%)}
 #roll{position:fixed;left:0;right:0;height:120px;top:-120px;pointer-events:none;z-index:49;
   background:linear-gradient(to bottom,transparent,rgba(141,255,166,.035),transparent);
   animation:roll 9s linear infinite}
@@ -108,6 +108,42 @@ textarea{resize:vertical;width:100%}
 #msg{height:58px;flex:1;width:auto;min-width:0}
 #compose .row{flex-wrap:nowrap;align-items:stretch}
 
+/* ── the radio: tuning dial, needle meter, knobs, lamp, riveted panels ── */
+.box{position:relative;border:1px solid #3c5a40;
+  background:linear-gradient(180deg,#0d160e,#081009);
+  box-shadow:inset 0 1px 0 rgba(168,255,187,.06),inset 0 -1px 0 rgba(0,0,0,.6),0 2px 8px rgba(0,0,0,.5)}
+.box::before,.box::after{content:"";position:absolute;width:6px;height:6px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#8a9a8c,#3b463c 60%,#1b221c);box-shadow:0 1px 1px rgba(0,0,0,.8)}
+.box::before{top:5px;left:5px}.box::after{top:5px;right:5px}
+.box h3{opacity:.92;letter-spacing:.24em}
+
+#radio{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:center}
+.dialWrap{grid-column:1/-1;position:relative}
+.dialWrap svg,.vuWrap svg{width:100%;height:auto;display:block}
+.needle{transform-origin:100px 100px;transition:transform .5s cubic-bezier(.3,1.4,.5,1)}
+#dial.sweep .needle{animation:sweep 1.6s ease-in-out infinite alternate}
+@keyframes sweep{from{transform:rotate(-70deg)}to{transform:rotate(70deg)}}
+.vuNeedle{transform-origin:100px 96px;transition:transform .09s ease-out}
+.vuNeedle.fall{transition:transform .6s ease-in}
+.dialLabel{text-align:center;font-size:11px;letter-spacing:.2em;color:var(--dim);margin-top:-4px}
+
+.knobBox{text-align:center}
+.knob{width:62px;height:62px;border-radius:50%;margin:0 auto 4px;position:relative;cursor:ns-resize;touch-action:none;
+  background:radial-gradient(circle at 38% 32%,#4a5a4c,#1a221b 70%);
+  border:2px solid #3c5a40;box-shadow:0 3px 8px rgba(0,0,0,.7),inset 0 2px 3px rgba(255,255,255,.08)}
+.knob::after{content:"";position:absolute;left:50%;top:6px;width:3px;height:16px;margin-left:-1.5px;border-radius:2px;
+  background:var(--ink);box-shadow:0 0 6px var(--ink);transform-origin:50% 25px;transform:rotate(var(--r,0deg))}
+.knob:focus-visible{outline:1px solid var(--ink);outline-offset:3px}
+.knobName{font-size:10px;letter-spacing:.22em;color:var(--dim)}
+.knobVal{font-size:11px;color:var(--ink)}
+
+#onair{display:inline-flex;align-items:center;gap:7px;padding:4px 10px;border:1px solid #4a1d1a;
+  font-size:11px;letter-spacing:.24em;color:#5a2522;background:#0c0605}
+#onair i{width:10px;height:10px;border-radius:50%;background:#3a1210;box-shadow:inset 0 1px 2px rgba(0,0,0,.8)}
+#onair.live{color:#ff6a5e;border-color:#ff5a4e;text-shadow:0 0 8px rgba(255,90,78,.7)}
+#onair.live i{background:#ff4a3e;box-shadow:0 0 12px 3px rgba(255,74,62,.8);animation:air 1.4s ease-in-out infinite}
+@keyframes air{50%{opacity:.55}}
+
 /* overlays */
 .veil{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:40}
 .card{width:min(560px,92vw);border:1px solid var(--dim);background:#050805;padding:18px;box-shadow:0 0 40px rgba(141,255,166,.12)}
@@ -139,9 +175,38 @@ body.nudged #app{animation:jolt .45s linear 2}
     </div>
 
     <div class="box">
-      <h3>Signal</h3>
-      <div id="meter"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-      <div id="state" class="glow">DARK</div>
+      <h3>Receiver</h3>
+      <div id="radio">
+        <div class="dialWrap">
+          <svg id="dial" viewBox="0 0 200 118">
+            <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="#2f5236" stroke-width="2"/>
+            <g id="dialTicks"></g>
+            <text x="22" y="114" fill="#6fcf8a" font-size="9" font-family="Courier New">88</text>
+            <text x="92" y="16" fill="#6fcf8a" font-size="9" font-family="Courier New">98</text>
+            <text x="164" y="114" fill="#6fcf8a" font-size="9" font-family="Courier New">108</text>
+            <g class="needle" id="dialNeedle" style="transform:rotate(-80deg)">
+              <line x1="100" y1="100" x2="100" y2="26" stroke="#ffb347" stroke-width="2"/>
+            </g>
+            <circle cx="100" cy="100" r="6" fill="#1a221b" stroke="#6fcf8a"/>
+          </svg>
+          <div class="dialLabel" id="dialLabel">NO CARRIER</div>
+        </div>
+        <div class="vuWrap" style="grid-column:1/-1">
+          <svg viewBox="0 0 200 104">
+            <path d="M30 96 A72 72 0 0 1 170 96" fill="none" stroke="#2f5236" stroke-width="10"/>
+            <path d="M140 42 A72 72 0 0 1 170 96" fill="none" stroke="#5a2522" stroke-width="10"/>
+            <text x="92" y="84" fill="#6fcf8a" font-size="9" font-family="Courier New">VU</text>
+            <g class="vuNeedle" id="vu" style="transform:rotate(-58deg)">
+              <line x1="100" y1="96" x2="100" y2="30" stroke="#a8ffbb" stroke-width="1.6"/>
+            </g>
+            <circle cx="100" cy="96" r="4" fill="#a8ffbb"/>
+          </svg>
+        </div>
+        <div class="knobBox"><div class="knob" id="kVol" tabindex="0" data-v="80"></div><div class="knobName">VOLUME</div><div class="knobVal" id="kVolV">80</div></div>
+        <div class="knobBox"><div class="knob" id="kSq" tabindex="0" data-v="70"></div><div class="knobName">SQUELCH</div><div class="knobVal" id="kSqV">70</div></div>
+      </div>
+      <div id="meter" hidden><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div id="state" class="glow" style="margin-top:8px">DARK</div>
       <div class="kv"><span>link</span><b id="kLink">none</b></div>
       <div class="kv"><span>sent</span><b id="kSent">0</b></div>
       <div class="kv"><span>received</span><b id="kRecv">0</b></div>
@@ -170,6 +235,7 @@ body.nudged #app{animation:jolt .45s linear 2}
     <div id="top">
       <button id="railBtn">&#9776;</button>
       <div id="peerName" class="glow">NO SIGNAL</div>
+      <span id="onair"><i></i>ON AIR</span>
       <button id="bTune" class="amberBtn">Tune</button>
       <button id="bVoice" disabled>Voice</button>
       <button id="bVideo" disabled>Video</button>
@@ -258,7 +324,7 @@ body.nudged #app{animation:jolt .45s linear 2}
     try {
       var c = audio(), o = c.createOscillator(), g = c.createGain();
       o.type = type || "square"; o.frequency.value = f;
-      g.gain.setValueAtTime(vol || .04, c.currentTime);
+      g.gain.setValueAtTime((vol || .04) * squelch(), c.currentTime);
       g.gain.exponentialRampToValueAtTime(.0001, c.currentTime + ms / 1000);
       o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + ms / 1000);
     } catch (e) {}
@@ -268,10 +334,11 @@ body.nudged #app{animation:jolt .45s linear 2}
       var c = audio(), n = Math.floor(c.sampleRate * ms / 1000), buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
       for (var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
       var s = c.createBufferSource(), g = c.createGain(), f = c.createBiquadFilter();
-      f.type = "bandpass"; f.frequency.value = 1800; g.gain.value = .12;
+      f.type = "bandpass"; f.frequency.value = 1800; g.gain.value = .12 * squelch();
       s.buffer = buf; s.connect(f); f.connect(g); g.connect(c.destination); s.start();
     } catch (e) {}
   }
+  function squelch() { return (+($("kSq").dataset.v || 70)) / 70; }
   function flash() { var f = $("flash"); f.classList.remove("go"); void f.offsetWidth; f.classList.add("go"); }
 
   /* ================= identity ================= */
@@ -312,13 +379,24 @@ body.nudged #app{animation:jolt .45s linear 2}
   var makingOffer = false, polite = false, counts = { s: 0, r: 0, b: 0 };
 
   function meter(kind) {
-    var m = $("meter");
-    m.className = kind || "";
+    $("meter").className = kind || "";
+    var d = $("dial"), n = $("dialNeedle");
+    d.classList.toggle("sweep", kind === "tune");
+    if (kind === "tune") { n.style.transform = ""; $("dialLabel").textContent = "SEARCHING…"; }
+    else if (kind === "lock") {
+      // it settles on a frequency of its own, the same for both sides of this link
+      var a = -60 + (lockSeed % 120);
+      n.style.transform = "rotate(" + a + "deg)";
+      $("dialLabel").textContent = "CARRIER " + (88 + (a + 80) / 160 * 20).toFixed(1) + " MHz";
+    } else { n.style.transform = "rotate(-80deg)"; $("dialLabel").textContent = "NO CARRIER"; }
   }
+  var lockSeed = 60, vuT = 0;
   function blip(dir) {
-    var m = $("meter"), was = m.className;
-    m.classList.add(dir);
-    setTimeout(function () { m.classList.remove(dir); }, 140);
+    var v = $("vu");
+    v.classList.remove("fall");
+    v.style.transform = "rotate(" + (8 + Math.random() * 42) + "deg)";
+    clearTimeout(vuT);
+    vuT = setTimeout(function () { v.classList.add("fall"); v.style.transform = "rotate(-58deg)"; }, 110);
   }
   function setState(t) { $("state").textContent = t; $("kLink").textContent = t.toLowerCase(); }
   function sys(t) { var d = document.createElement("div"); d.className = "sys"; d.textContent = t; $("log").appendChild(d); scroll(); }
@@ -348,6 +426,7 @@ body.nudged #app{animation:jolt .45s linear 2}
     pc.ontrack = function (e) {
       var v = $("vThem");
       if (v.srcObject !== e.streams[0]) v.srcObject = e.streams[0];
+      v.volume = (+($("kVol").dataset.v || 80)) / 100;
       $("stage").classList.add("on");
     };
     pc.ondatachannel = function (e) {
@@ -427,6 +506,8 @@ body.nudged #app{animation:jolt .45s linear 2}
         case "hello":
           peer.name = String(m.name || "UNKNOWN").slice(0, 24); peer.pub = m.pub;
           peer.fp = await fingerprint(m.pub);
+          lockSeed = parseInt(peer.fp.slice(0, 4), 16) ^ parseInt(myFp.slice(0, 4), 16);
+          meter('lock');
           $("peerName").textContent = "LINKED: " + peer.name;
           $("kPeerFp").textContent = peer.fp;
           remember();
@@ -565,6 +646,7 @@ body.nudged #app{animation:jolt .45s linear 2}
     if (kind === "video") { $("vMe").srcObject = local; }
     $("stage").classList.add("on");
     $("bHang").hidden = false;
+    $("onair").classList.add("live");
     sys(kind === "video" ? "video open" : "voice open");
   }
   function stopMedia(tell) {
@@ -575,6 +657,7 @@ body.nudged #app{animation:jolt .45s linear 2}
     local = null; pendingKind = null;
     $("vMe").srcObject = null; $("vThem").srcObject = null;
     $("stage").classList.remove("on"); $("bHang").hidden = true;
+    $("onair").classList.remove("live");
   }
   $("bHang").onclick = function () { stopMedia(true); sys("you ended the call"); };
   $("bScreen").onclick = async function () {
@@ -583,6 +666,7 @@ body.nudged #app{animation:jolt .45s linear 2}
       screenTrack = s.getVideoTracks()[0];
       pc.addTrack(screenTrack, s);
       $("vMe").srcObject = s; $("stage").classList.add("on"); $("bHang").hidden = false;
+      $("onair").classList.add("live");
       screenTrack.onended = function () { sys("screen share ended"); };
       sys("sharing your screen");
     } catch (e) { sys("screen share cancelled"); }
@@ -671,6 +755,42 @@ body.nudged #app{animation:jolt .45s linear 2}
       stat(160);
     } catch (e) { $("ddShow").textContent = "this drop wasn't meant for you, or it has been tampered with."; }
   };
+
+  function knob(el, out, onSet) {
+    function paint() {
+      var v = +el.dataset.v;
+      el.style.setProperty("--r", (-135 + v / 100 * 270) + "deg");
+      $(out).textContent = v;
+      onSet(v);
+    }
+    function set(v) { el.dataset.v = Math.max(0, Math.min(100, Math.round(v))); paint(); }
+    var y0 = 0, v0 = 0, dragging = false;
+    el.addEventListener("pointerdown", function (e) { dragging = true; y0 = e.clientY; v0 = +el.dataset.v; el.setPointerCapture(e.pointerId); });
+    el.addEventListener("pointermove", function (e) { if (dragging) set(v0 + (y0 - e.clientY) * 0.6); });
+    el.addEventListener("pointerup", function () { dragging = false; tone(1200, 20, "square", .02); });
+    el.addEventListener("wheel", function (e) { e.preventDefault(); set(+el.dataset.v - Math.sign(e.deltaY) * 4); }, { passive: false });
+    el.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowUp" || e.key === "ArrowRight") { set(+el.dataset.v + 5); e.preventDefault(); }
+      if (e.key === "ArrowDown" || e.key === "ArrowLeft") { set(+el.dataset.v - 5); e.preventDefault(); }
+    });
+    if (S[el.id] != null) el.dataset.v = S[el.id];
+    paint();
+  }
+  knob($("kVol"), "kVolV", function (v) { $("vThem").volume = v / 100; S.kVol = v; save(); });
+  knob($("kSq"), "kSqV", function (v) { S.kSq = v; save(); });
+
+  // the dial scale, drawn once
+  (function () {
+    var g = $("dialTicks"), out = "";
+    for (var i = 0; i <= 40; i++) {
+      var a = (-170 + i * 4) * Math.PI / 180, long = i % 5 === 0;
+      var r1 = long ? 70 : 75, r2 = 80;
+      out += '<line x1="' + (100 + Math.cos(a) * r1).toFixed(1) + '" y1="' + (100 + Math.sin(a) * r1).toFixed(1) +
+             '" x2="' + (100 + Math.cos(a) * r2).toFixed(1) + '" y2="' + (100 + Math.sin(a) * r2).toFixed(1) +
+             '" stroke="' + (long ? "#a8ffbb" : "#3f7a4e") + '" stroke-width="' + (long ? 1.6 : 1) + '"/>';
+    }
+    g.innerHTML = out;
+  })();
 
   $("railBtn").onclick = function () { $("app").classList.toggle("railOn"); };
 
