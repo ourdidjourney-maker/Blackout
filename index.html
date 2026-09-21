@@ -145,6 +145,13 @@ textarea{resize:vertical;width:100%}
 #onair.live i{background:#ff4a3e;box-shadow:0 0 12px 3px rgba(255,74,62,.8);animation:air 1.4s ease-in-out infinite}
 @keyframes air{50%{opacity:.55}}
 
+/* hover help */
+#tip{position:fixed;z-index:80;max-width:300px;pointer-events:none;opacity:0;transition:opacity .12s;
+  background:#060b07;border:1px solid var(--dim);padding:8px 10px;font-size:12px;line-height:1.45;color:var(--ink);
+  box-shadow:0 6px 24px rgba(0,0,0,.7),0 0 12px rgba(141,255,166,.12)}
+#tip.on{opacity:1}
+#tip b{display:block;color:var(--amber);letter-spacing:.16em;font-weight:normal;margin-bottom:3px;text-transform:uppercase;font-size:11px}
+
 /* overlays */
 .veil{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:40}
 .card{width:min(560px,92vw);border:1px solid var(--dim);background:#050805;padding:18px;box-shadow:0 0 40px rgba(141,255,166,.12)}
@@ -159,6 +166,7 @@ body.nudged #app{animation:jolt .45s linear 2}
 <body>
 <div id="roll"></div>
 <div id="flash"></div>
+<div id="tip"></div>
 
 <div id="app">
   <aside id="rail">
@@ -845,6 +853,91 @@ body.nudged #app{animation:jolt .45s linear 2}
   })();
 
   $("railBtn").onclick = function () { $("app").classList.toggle("railOn"); };
+
+
+  /* ================= hover help ================= */
+  // Every control explains itself. Title first, then what it does and how to use it.
+  var TIPS = {
+    callsign: ["Callsign", "The name the other person sees on your messages. Type anything; it's saved on this machine."],
+    fp: ["Your key", "A fingerprint of the key this machine made for you. Read it aloud to the person you're linked with — if it matches what their screen shows, nobody is sitting between you."],
+    dial: ["Tuning dial", "Rests at the bottom with no link. Sweeps while a frequency is being made or tuned, then settles on this link's carrier. Both sides settle on the same number."],
+    vuWrap: ["Signal meter", "Kicks with every message, file chunk or signal crossing the link, and falls back between them."],
+    kVol: ["Volume", "How loud the other person is during a call. Drag up or down, roll the mouse wheel, or click it and use the arrow keys."],
+    kSq: ["Squelch", "How loud this station's own sounds are: static, beeps, rings and nudges. Turn it all the way down for silence."],
+    state: ["Link state", "DARK means no link. TUNING means you're connecting. LOCKED means you're talking directly to the other machine."],
+    kLink: ["Link", "The current state of the connection."],
+    kSent: ["Sent", "How many transmissions you've sent this session."],
+    kRecv: ["Received", "How many transmissions have arrived this session."],
+    kBytes: ["Carried", "The total amount of data that has crossed the link, both ways."],
+    kPeerFp: ["Their key", "The fingerprint of the person you're linked with. Ask them to read theirs aloud and compare."],
+    contacts: ["Known survivors", "Everyone you've linked with at least once. Their keys are kept here so you can leave them a dead drop later."],
+    ddWrite: ["Seal one", "Write a dead drop to a known survivor. You'll get a sealed block of text to send them any way you like."],
+    ddOpen: ["Open one", "Paste a sealed dead drop someone left you and read it. Only drops sealed to your key will open."],
+    onair: ["On air", "Glows red while a voice call, video call or screen share is running."],
+    peerName: ["Who's on the line", "Shows who you're linked with, or NO SIGNAL when nobody is."],
+    bTune: ["Tune", "Opens the tuning panel, where you make a frequency or tune to someone else's to start a link."],
+    bVoice: ["Voice", "Calls the other person with audio. They have to answer before it opens."],
+    bVideo: ["Video", "Calls the other person with camera and audio. They have to answer before it opens."],
+    bScreen: ["Screen", "Shares your screen or a window with the other person, live. It only sends new frames when the screen changes."],
+    bFile: ["File", "Sends one or more files straight to the other machine, with a progress bar. They get a link to save each one."],
+    bNudge: ["Nudge", "Shakes the other person's screen and buzzes, to get their attention."],
+    bHang: ["Hang up", "Ends the current call or screen share. The link itself stays up."],
+    bCut: ["Cut link", "Closes the connection completely. You'll need a new frequency to talk again."],
+    tMake: ["Make a frequency", "Creates a connection code. Send it to the other person any way you can, then paste their answer here."],
+    tUse: ["Tune to theirs", "Paste the code they sent you into the box, then press this. If it's their frequency, you'll get an answer to send back. If it's their answer, the link locks."],
+    tCopy: ["Copy", "Copies whatever is in the box so you can send it."],
+    tCode: ["Frequency box", "Your frequency appears here to copy, or paste theirs here before pressing Tune to theirs."],
+    msg: ["Transmit", "Type your message. Enter sends it; Shift+Enter starts a new line."],
+    send: ["Send", "Sends what you've typed."],
+    ddTo: ["Who it's for", "The known survivor this drop will be sealed to. Only they can open it."],
+    ddText: ["Your message", "What you want them to read."],
+    ddSeal: ["Seal it", "Encrypts the message to their key and produces the sealed block below."],
+    ddCopy: ["Copy", "Copies the sealed block so you can send it."],
+    ddOut: ["Sealed drop", "This is the whole message, sealed. Send it by text, email, paper — anything. Anyone else sees only scrambled text."],
+    ddIn: ["Paste the drop", "Paste the whole sealed block, including the marker lines at the top and bottom."],
+    ddRead: ["Open it", "Opens the drop, if it was sealed to your key."],
+    ringYes: ["Answer", "Picks up the call and turns on your microphone, and your camera for a video call."],
+    ringNo: ["Refuse", "Declines the call. The link stays up."],
+    railBtn: ["Station panel", "Shows or hides your callsign, receiver and dead drops on a small screen."],
+    stage: ["Picture", "The other person's video or screen is on the left, yours on the right."]
+  };
+  var FMT = { b: ["Bold", "Wraps the selected text in **stars** so it arrives bold."],
+              i: ["Italic", "Wraps the selected text in *stars* so it arrives in italics."],
+              code: ["Code", "Wraps the selected text in `backticks` so it arrives as code."],
+              q: ["Quote", "Starts a quoted line. It arrives set off from the rest of the message."] };
+  (function () {
+    Object.keys(TIPS).forEach(function (id) {
+      var el = $(id); if (el) el.dataset.tip = JSON.stringify(TIPS[id]);
+    });
+    document.querySelectorAll("#fmt button[data-m]").forEach(function (b) {
+      b.dataset.tip = JSON.stringify(FMT[b.getAttribute("data-m")]);
+    });
+    // the dial and the meter live in SVG, so their wrappers carry the help
+    var dw = document.querySelector(".dialWrap"); if (dw) dw.dataset.tip = JSON.stringify(TIPS.dial);
+    var vw = document.querySelector(".vuWrap"); if (vw) vw.dataset.tip = JSON.stringify(TIPS.vuWrap);
+
+    var tip = $("tip"), timer = 0, cur = null;
+    function place(e) {
+      var x = e.clientX + 14, y = e.clientY + 16, r = tip.getBoundingClientRect();
+      if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
+      if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 14;
+      tip.style.left = x + "px"; tip.style.top = y + "px";
+    }
+    document.addEventListener("mouseover", function (e) {
+      var el = e.target.closest && e.target.closest("[data-tip]");
+      if (el === cur) return;
+      cur = el; clearTimeout(timer); tip.classList.remove("on");
+      if (!el) return;
+      timer = setTimeout(function () {
+        var t = JSON.parse(el.dataset.tip);
+        tip.innerHTML = "<b></b><span></span>";
+        tip.children[0].textContent = t[0]; tip.children[1].textContent = t[1];
+        place(e); tip.classList.add("on");
+      }, 380);
+    });
+    document.addEventListener("mousemove", function (e) { if (tip.classList.contains("on")) place(e); });
+    document.addEventListener("mousedown", function () { clearTimeout(timer); tip.classList.remove("on"); });
+  })();
 
   identity().then(drawContacts);
   window.BLACKOUT = { state: function () { return { ctl: ctl && ctl.readyState, pc: pc && pc.connectionState }; } };
