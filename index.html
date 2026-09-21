@@ -339,6 +339,57 @@ body.nudged #app{animation:jolt .45s linear 2}
     } catch (e) {}
   }
   function squelch() { return (+($("kSq").dataset.v || 70)) / 70; }
+
+  /* ── the keyboard: an old mechanical board, every stroke a little different ── */
+  // Six characters of key, each a short burst of filtered noise with a tick on top.
+  var KEYS = [
+    { f: 3200, q: 1.4, len: 32, tick: 1900, vol: .20 },
+    { f: 2600, q: 1.1, len: 40, tick: 1500, vol: .22 },
+    { f: 4100, q: 1.8, len: 26, tick: 2400, vol: .17 },
+    { f: 2200, q: 0.9, len: 46, tick: 1200, vol: .24 },
+    { f: 3600, q: 1.6, len: 30, tick: 2100, vol: .19 },
+    { f: 2900, q: 1.2, len: 36, tick: 1700, vol: .21 }
+  ];
+  var SPACE = { f: 900,  q: 0.8, len: 70, tick: 420,  vol: .30 },
+      ENTER = { f: 1300, q: 0.9, len: 85, tick: 600,  vol: .34 },
+      BACK  = { f: 5200, q: 2.2, len: 24, tick: 3000, vol: .16 };
+  var lastKey = -1;
+  function keySound(p) {
+    var sq = squelch();
+    if (sq <= 0) return;
+    try {
+      var c = audio(), t = c.currentTime;
+      var jit = 0.88 + Math.random() * 0.24;                      // no two strokes quite alike
+      var len = p.len * (0.85 + Math.random() * 0.3) / 1000;
+      var n = Math.floor(c.sampleRate * len), buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+      for (var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3);
+      var src = c.createBufferSource(), bp = c.createBiquadFilter(), g = c.createGain();
+      bp.type = "bandpass"; bp.frequency.value = p.f * jit; bp.Q.value = p.q;
+      g.gain.value = p.vol * sq * (0.8 + Math.random() * 0.4);
+      src.buffer = buf; src.connect(bp); bp.connect(g); g.connect(c.destination); src.start(t);
+      // the tick of the switch bottoming out
+      var o = c.createOscillator(), og = c.createGain();
+      o.type = "triangle"; o.frequency.value = p.tick * jit;
+      og.gain.setValueAtTime(p.vol * 0.35 * sq, t);
+      og.gain.exponentialRampToValueAtTime(.0001, t + 0.018);
+      o.connect(og); og.connect(c.destination); o.start(t); o.stop(t + 0.02);
+    } catch (e) {}
+  }
+  /* KEYBOARD SOUNDS — switched off for now. Remove this comment wrapper to bring them back.
+  document.addEventListener("keydown", function (e) {
+    var el = e.target;
+    if (!el || !(el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && /^(text|search|)$/.test(el.type)))) return;
+    if (e.repeat && Math.random() < 0.5) return;                  // held keys rattle, not machine-gun
+    if (e.key === " ") return keySound(SPACE);
+    if (e.key === "Enter") return keySound(ENTER);
+    if (e.key === "Backspace" || e.key === "Delete") return keySound(BACK);
+    if (e.key.length !== 1) return;                               // shift, arrows and the like are silent
+    var i;
+    do { i = Math.floor(Math.random() * KEYS.length); } while (i === lastKey && KEYS.length > 1);
+    lastKey = i;
+    keySound(KEYS[i]);
+  }, true);
+  */
   function flash() { var f = $("flash"); f.classList.remove("go"); void f.offsetWidth; f.classList.add("go"); }
 
   /* ================= identity ================= */
