@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BLACKOUT</title>
+<style>
+:root{
+  --ink:#8dffa6; --dim:#3f8f55; --faint:#1d3a25; --amber:#ffb347; --red:#ff5a4e;
+  --bg:#040604; --panel:#070b07; --edge:#1a2a1c;
+  --mono:"Courier New",ui-monospace,Consolas,monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.5 var(--mono)}
+body{overflow:hidden}
+
+/* the glass of an old tube: scanlines, a slow roll, and a vignette */
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;
+  background:repeating-linear-gradient(to bottom,rgba(0,0,0,.28) 0,rgba(0,0,0,.28) 1px,transparent 1px,transparent 3px);
+  mix-blend-mode:multiply}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:51;
+  background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.72) 100%)}
+#roll{position:fixed;left:0;right:0;height:120px;top:-120px;pointer-events:none;z-index:49;
+  background:linear-gradient(to bottom,transparent,rgba(141,255,166,.035),transparent);
+  animation:roll 9s linear infinite}
+@keyframes roll{to{top:100%}}
+.glow{text-shadow:0 0 6px rgba(141,255,166,.55),0 0 1px rgba(141,255,166,.9)}
+.amber{color:var(--amber);text-shadow:0 0 6px rgba(255,179,71,.5)}
+
+#app{display:grid;grid-template-columns:300px 1fr;height:100%}
+@media (max-width:820px){#app{grid-template-columns:1fr}#rail{display:none}#app.railOn #rail{display:flex}}
+
+/* ── left rail ── */
+#rail{display:flex;flex-direction:column;gap:12px;padding:14px;border-right:1px solid var(--edge);
+  background:linear-gradient(180deg,#060906,#030403);overflow-y:auto}
+.logo{font-size:26px;letter-spacing:.32em;font-weight:bold;margin:2px 0 0}
+.tag{font-size:11px;color:var(--dim);letter-spacing:.18em;text-transform:uppercase}
+.box{border:1px solid var(--edge);background:var(--panel);padding:10px}
+.box h3{margin:0 0 8px;font-size:11px;letter-spacing:.2em;color:var(--dim);text-transform:uppercase;font-weight:normal}
+.kv{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:2px 0}
+.kv span{color:var(--dim)}
+.kv b{font-weight:normal;text-align:right;word-break:break-all}
+#fp{font-size:11px;letter-spacing:.06em;color:var(--amber);word-break:break-all}
+
+/* the signal meter */
+#meter{display:flex;gap:3px;align-items:flex-end;height:26px;margin:4px 0 6px}
+#meter i{flex:1;background:var(--faint);transition:background .15s}
+#meter i:nth-child(1){height:20%}#meter i:nth-child(2){height:35%}#meter i:nth-child(3){height:50%}
+#meter i:nth-child(4){height:65%}#meter i:nth-child(5){height:80%}#meter i:nth-child(6){height:100%}
+#meter.lock i{background:var(--ink);box-shadow:0 0 6px rgba(141,255,166,.6)}
+#meter.tune i{background:var(--amber)}
+#meter.tx i:nth-child(odd),#meter.rx i:nth-child(even){background:#fff}
+#state{font-size:12px;letter-spacing:.16em}
+
+button,input,select,textarea{font:inherit;color:var(--ink);background:#030503;border:1px solid var(--edge)}
+button{cursor:pointer;padding:6px 10px;letter-spacing:.12em;text-transform:uppercase;font-size:11.5px}
+button:hover{border-color:var(--dim);background:#081108}
+button:disabled{opacity:.35;cursor:default}
+button.hot{border-color:var(--ink);color:#000;background:var(--ink);text-shadow:none}
+button.warn{border-color:var(--red);color:var(--red)}
+button.amberBtn{border-color:var(--amber);color:var(--amber)}
+input,textarea,select{padding:7px 9px}
+input:focus,textarea:focus,button:focus-visible,select:focus{outline:1px solid var(--ink);outline-offset:1px}
+textarea{resize:vertical;width:100%}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.row > input{flex:1;min-width:0}
+.small{font-size:11px;color:var(--dim)}
+
+#contacts{list-style:none;margin:0;padding:0}
+#contacts li{display:flex;justify-content:space-between;gap:6px;font-size:12px;padding:4px 0;border-bottom:1px dashed var(--faint)}
+#contacts li b{font-weight:normal}
+
+/* ── main ── */
+#main{display:flex;flex-direction:column;min-width:0;min-height:0}
+#top{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:10px 14px;border-bottom:1px solid var(--edge);background:#050805}
+#peerName{margin-right:auto;font-size:13px;letter-spacing:.16em}
+#railBtn{display:none}
+@media (max-width:820px){#railBtn{display:inline-block}}
+
+#stage{display:none;gap:8px;padding:10px 14px;border-bottom:1px solid var(--edge);background:#020302}
+#stage.on{display:flex}
+#stage video{flex:1;min-width:0;max-height:34vh;background:#000;border:1px solid var(--edge);filter:sepia(.35) hue-rotate(60deg) saturate(1.3) contrast(1.1)}
+#stage video#vMe{flex:0 0 26%}
+
+#tune{padding:14px;border-bottom:1px solid var(--edge);background:#050805}
+#tune textarea{height:86px;font-size:11px;color:var(--amber)}
+
+#log{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px}
+.m{max-width:78%;border-left:2px solid var(--dim);padding:4px 0 4px 10px}
+.m.me{align-self:flex-end;border-left:0;border-right:2px solid var(--amber);padding:4px 10px 4px 0;text-align:right}
+.m .who{font-size:11px;letter-spacing:.18em;color:var(--dim)}
+.m.me .who{color:var(--amber)}
+.m .body{white-space:pre-wrap;word-break:break-word}
+.m .meta{font-size:10.5px;color:var(--dim);margin-top:2px}
+.m code{background:#0d160d;padding:0 4px}
+.m blockquote{margin:2px 0;padding-left:8px;border-left:2px solid var(--faint);color:var(--dim)}
+.sys{align-self:center;font-size:11px;letter-spacing:.2em;color:var(--dim);text-transform:uppercase}
+.file{border:1px dashed var(--dim);padding:8px 10px}
+.bar{height:6px;background:var(--faint);margin-top:6px}
+.bar i{display:block;height:100%;width:0;background:var(--ink);box-shadow:0 0 6px var(--ink)}
+.file a{color:var(--amber)}
+
+#typing{padding:0 18px 4px;font-size:11px;color:var(--dim);letter-spacing:.14em;height:18px}
+#compose{border-top:1px solid var(--edge);padding:10px 14px;background:#050805}
+#fmt{margin-bottom:6px}
+#fmt button{padding:3px 8px}
+#msg{height:58px;flex:1;width:auto;min-width:0}
+#compose .row{flex-wrap:nowrap;align-items:stretch}
+
+/* overlays */
+.veil{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:40}
+.card{width:min(560px,92vw);border:1px solid var(--dim);background:#050805;padding:18px;box-shadow:0 0 40px rgba(141,255,166,.12)}
+.card h2{margin:0 0 10px;letter-spacing:.24em;font-size:16px}
+#flash{position:fixed;inset:0;pointer-events:none;z-index:45;background:var(--ink);opacity:0}
+#flash.go{animation:flash .5s ease-out}
+@keyframes flash{0%{opacity:.35}100%{opacity:0}}
+@keyframes jolt{0%,100%{transform:none}20%{transform:translate(-3px,1px)}40%{transform:translate(3px,-1px)}60%{transform:translate(-2px,2px)}80%{transform:translate(2px,-2px)}}
+body.nudged #app{animation:jolt .45s linear 2}
+</style>
+</head>
+<body>
+<div id="roll"></div>
+<div id="flash"></div>
+
+<div id="app">
+  <aside id="rail">
+    <div>
+      <div class="logo glow">BLACKOUT</div>
+      <div class="tag">underground relay &middot; no towers &middot; no masters</div>
+    </div>
+
+    <div class="box">
+      <h3>Callsign</h3>
+      <div class="row"><input id="callsign" placeholder="Who are you out here" maxlength="24"></div>
+      <h3 style="margin-top:10px">Your key</h3>
+      <div id="fp">generating…</div>
+      <div class="small" style="margin-top:4px">Read this aloud to anyone who needs to know it's really you.</div>
+    </div>
+
+    <div class="box">
+      <h3>Signal</h3>
+      <div id="meter"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div id="state" class="glow">DARK</div>
+      <div class="kv"><span>link</span><b id="kLink">none</b></div>
+      <div class="kv"><span>sent</span><b id="kSent">0</b></div>
+      <div class="kv"><span>received</span><b id="kRecv">0</b></div>
+      <div class="kv"><span>carried</span><b id="kBytes">0 B</b></div>
+      <div class="kv"><span>their key</span><b id="kPeerFp">—</b></div>
+      <div class="kv"><span>route</span><b>direct, no relay</b></div>
+    </div>
+
+    <div class="box">
+      <h3>Known survivors</h3>
+      <ul id="contacts"></ul>
+      <div class="small">Anyone you've linked with is kept here, so you can leave them a dead drop.</div>
+    </div>
+
+    <div class="box">
+      <h3>Dead drop</h3>
+      <div class="small" style="margin-bottom:6px">A sealed message anyone can carry. Only the one it's for can open it.</div>
+      <div class="row">
+        <button id="ddWrite">Seal one</button>
+        <button id="ddOpen">Open one</button>
+      </div>
+    </div>
+  </aside>
+
+  <main id="main">
+    <div id="top">
+      <button id="railBtn">&#9776;</button>
+      <div id="peerName" class="glow">NO SIGNAL</div>
+      <button id="bTune" class="amberBtn">Tune</button>
+      <button id="bVoice" disabled>Voice</button>
+      <button id="bVideo" disabled>Video</button>
+      <button id="bScreen" disabled>Screen</button>
+      <button id="bFile" disabled>File</button>
+      <button id="bNudge" disabled>Nudge</button>
+      <button id="bHang" class="warn" hidden>Hang up</button>
+      <button id="bCut" class="warn" disabled>Cut link</button>
+      <input id="fileIn" type="file" multiple hidden>
+    </div>
+
+    <div id="stage"><video id="vThem" autoplay playsinline></video><video id="vMe" autoplay playsinline muted></video></div>
+
+    <div id="tune" hidden>
+      <div class="small" style="margin-bottom:8px">
+        One of you makes a frequency. Send it any way you can &mdash; text, paper, a voice down the line. The other tunes to it and sends one back. Then the link locks.
+      </div>
+      <div class="row" style="margin-bottom:8px">
+        <button id="tMake" class="hot">Make a frequency</button>
+        <button id="tUse">Tune to theirs</button>
+        <button id="tCopy">Copy</button>
+        <span id="tStep" class="small"></span>
+      </div>
+      <textarea id="tCode" placeholder="Frequency appears here — or paste theirs"></textarea>
+    </div>
+
+    <div id="log"><div class="sys">the grid is down. nobody is listening. tune a frequency to find someone.</div></div>
+    <div id="typing"></div>
+
+    <div id="compose">
+      <div id="fmt" class="row">
+        <button data-m="b">B</button><button data-m="i">I</button><button data-m="code">&lt;/&gt;</button>
+        <button data-m="q">&gt; Q</button>
+        <span class="small" style="margin-left:auto">Enter sends &middot; Shift+Enter new line</span>
+      </div>
+      <div class="row">
+        <textarea id="msg" placeholder="Transmit…" disabled></textarea>
+        <button id="send" class="hot" disabled>Send</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- dead drop dialogs -->
+<div class="veil" id="ddWriteBox" hidden><div class="card">
+  <h2 class="glow">SEAL A DEAD DROP</h2>
+  <div class="row" style="margin-bottom:8px"><select id="ddTo"></select></div>
+  <textarea id="ddText" style="height:110px" placeholder="What they need to know"></textarea>
+  <div class="row" style="margin-top:8px"><button id="ddSeal" class="hot">Seal it</button><button id="ddCopy">Copy</button><button class="closeV">Close</button></div>
+  <textarea id="ddOut" style="height:110px;margin-top:8px;color:var(--amber);font-size:11px" readonly placeholder="The sealed drop appears here"></textarea>
+</div></div>
+<div class="veil" id="ddOpenBox" hidden><div class="card">
+  <h2 class="glow">OPEN A DEAD DROP</h2>
+  <textarea id="ddIn" style="height:130px;font-size:11px" placeholder="Paste the sealed drop"></textarea>
+  <div class="row" style="margin-top:8px"><button id="ddRead" class="hot">Open it</button><button class="closeV">Close</button></div>
+  <div id="ddShow" style="margin-top:10px;white-space:pre-wrap"></div>
+</div></div>
+
+<!-- incoming call -->
+<div class="veil" id="ringBox" hidden><div class="card">
+  <h2 class="amber" id="ringWhat">INCOMING</h2>
+  <div class="row"><button id="ringYes" class="hot">Answer</button><button id="ringNo" class="warn">Refuse</button></div>
+</div></div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var enc = new TextEncoder(), dec = new TextDecoder();
+  function b64(buf) { var b = new Uint8Array(buf), s = ""; for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s); }
+  function unb64(s) { var r = atob(s), b = new Uint8Array(r.length); for (var i = 0; i < r.length; i++) b[i] = r.charCodeAt(i); return b; }
+  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function human(n) { return n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(1) + " KB" : (n / 1048576).toFixed(1) + " MB"; }
+  function stamp(t) { var d = new Date(t); return d.toLocaleDateString() + " " + d.toLocaleTimeString(); }
+
+  /* ================= memory ================= */
+  var KEY = "blackout";
+  var S = (function () { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } })();
+  S.contacts = S.contacts || [];
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+  /* ================= sound: made on the spot ================= */
+  var ac = null;
+  function audio() { if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)(); return ac; }
+  function tone(f, ms, type, vol) {
+    try {
+      var c = audio(), o = c.createOscillator(), g = c.createGain();
+      o.type = type || "square"; o.frequency.value = f;
+      g.gain.setValueAtTime(vol || .04, c.currentTime);
+      g.gain.exponentialRampToValueAtTime(.0001, c.currentTime + ms / 1000);
+      o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + ms / 1000);
+    } catch (e) {}
+  }
+  function stat(ms) {       // a burst of radio static
+    try {
+      var c = audio(), n = Math.floor(c.sampleRate * ms / 1000), buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+      for (var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+      var s = c.createBufferSource(), g = c.createGain(), f = c.createBiquadFilter();
+      f.type = "bandpass"; f.frequency.value = 1800; g.gain.value = .12;
+      s.buffer = buf; s.connect(f); f.connect(g); g.connect(c.destination); s.start();
+    } catch (e) {}
+  }
+  function flash() { var f = $("flash"); f.classList.remove("go"); void f.offsetWidth; f.classList.add("go"); }
+
+  /* ================= identity ================= */
+  var keys = null, myPub = null, myFp = "";
+  async function identity() {
+    if (S.id) {
+      keys = {
+        priv: await crypto.subtle.importKey("jwk", S.id.priv, { name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey"]),
+        pub: S.id.pub
+      };
+    } else {
+      var k = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey"]);
+      S.id = { priv: await crypto.subtle.exportKey("jwk", k.privateKey), pub: await crypto.subtle.exportKey("jwk", k.publicKey) };
+      save();
+      keys = { priv: k.privateKey, pub: S.id.pub };
+    }
+    myPub = S.id.pub;
+    myFp = await fingerprint(myPub);
+    $("fp").textContent = myFp;
+  }
+  async function fingerprint(jwk) {
+    var h = await crypto.subtle.digest("SHA-256", enc.encode(jwk.x + "." + jwk.y));
+    var hex = Array.prototype.map.call(new Uint8Array(h), function (b) { return ("0" + b.toString(16)).slice(-2); }).join("").toUpperCase();
+    return hex.slice(0, 32).match(/.{4}/g).join("-");
+  }
+  async function shared(theirJwk) {
+    var pk = await crypto.subtle.importKey("jwk", theirJwk, { name: "ECDH", namedCurve: "P-256" }, true, []);
+    return crypto.subtle.deriveKey({ name: "ECDH", public: pk }, keys.priv, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  }
+
+  /* ================= callsign ================= */
+  $("callsign").value = S.callsign || "";
+  $("callsign").oninput = function () { S.callsign = this.value.trim(); save(); };
+  function me() { return S.callsign || "UNNAMED"; }
+
+  /* ================= the link ================= */
+  var pc = null, ctl = null, fileCh = null, peer = { name: "", pub: null, fp: "" };
+  var makingOffer = false, polite = false, counts = { s: 0, r: 0, b: 0 };
+
+  function meter(kind) {
+    var m = $("meter");
+    m.className = kind || "";
+  }
+  function blip(dir) {
+    var m = $("meter"), was = m.className;
+    m.classList.add(dir);
+    setTimeout(function () { m.classList.remove(dir); }, 140);
+  }
+  function setState(t) { $("state").textContent = t; $("kLink").textContent = t.toLowerCase(); }
+  function sys(t) { var d = document.createElement("div"); d.className = "sys"; d.textContent = t; $("log").appendChild(d); scroll(); }
+  function scroll() { var l = $("log"); l.scrollTop = l.scrollHeight; }
+  function tally() {
+    $("kSent").textContent = counts.s; $("kRecv").textContent = counts.r; $("kBytes").textContent = human(counts.b);
+  }
+
+  function newPC() {
+    if (pc) try { pc.close(); } catch (e) {}
+    pc = new RTCPeerConnection({ iceServers: [] });
+    pc.onconnectionstatechange = function () {
+      var st = pc.connectionState;
+      if (st === "connecting") { setState("TUNING"); meter("tune"); }
+      if (st === "connected") { setState("LOCKED"); meter("lock"); }
+      if (st === "failed" || st === "disconnected" || st === "closed") { dropped(); }
+    };
+    // perfect negotiation: either side can add a call at any time without jamming
+    pc.onnegotiationneeded = async function () {
+      if (!ctl || ctl.readyState !== "open") return;
+      try {
+        makingOffer = true;
+        await pc.setLocalDescription();
+        send({ t: "sdp", d: pc.localDescription });
+      } catch (e) {} finally { makingOffer = false; }
+    };
+    pc.ontrack = function (e) {
+      var v = $("vThem");
+      if (v.srcObject !== e.streams[0]) v.srcObject = e.streams[0];
+      $("stage").classList.add("on");
+    };
+    pc.ondatachannel = function (e) {
+      if (e.channel.label === "ctl") wireCtl(e.channel);
+      if (e.channel.label === "file") wireFile(e.channel);
+    };
+    return pc;
+  }
+
+  function gather() {
+    return new Promise(function (res) {
+      if (pc.iceGatheringState === "complete") return res();
+      pc.addEventListener("icegatheringstatechange", function f() {
+        if (pc.iceGatheringState === "complete") { pc.removeEventListener("icegatheringstatechange", f); res(); }
+      });
+      setTimeout(res, 3000);
+    });
+  }
+  function pack(d) { return "BO1:" + btoa(JSON.stringify({ type: d.type, sdp: d.sdp })); }
+  function unpack(s) { return JSON.parse(atob(String(s).trim().replace(/^BO1:/, "").replace(/\s+/g, ""))); }
+
+  $("bTune").onclick = function () { $("tune").hidden = !$("tune").hidden; };
+  $("tMake").onclick = async function () {
+    newPC(); polite = false;
+    wireCtl(pc.createDataChannel("ctl"));
+    wireFile(pc.createDataChannel("file"));
+    await pc.setLocalDescription(await pc.createOffer());
+    $("tStep").textContent = "gathering…"; meter("tune"); setState("TUNING");
+    await gather();
+    $("tCode").value = pack(pc.localDescription);
+    $("tStep").textContent = "send this frequency. paste their answer, then press Tune to theirs.";
+    stat(180);
+  };
+  $("tUse").onclick = async function () {
+    var d;
+    try { d = unpack($("tCode").value); } catch (e) { $("tStep").textContent = "that isn't a frequency."; return; }
+    if (d.type === "offer") {
+      newPC(); polite = true;
+      await pc.setRemoteDescription(d);
+      await pc.setLocalDescription(await pc.createAnswer());
+      $("tStep").textContent = "gathering…"; meter("tune"); setState("TUNING");
+      await gather();
+      $("tCode").value = pack(pc.localDescription);
+      $("tStep").textContent = "send this back. the link locks when they tune to it.";
+    } else {
+      if (!pc) { $("tStep").textContent = "make a frequency first."; return; }
+      await pc.setRemoteDescription(d);
+      $("tStep").textContent = "locking…";
+    }
+    stat(180);
+  };
+  $("tCopy").onclick = function () { $("tCode").select(); document.execCommand("copy"); $("tStep").textContent = "copied."; };
+
+  /* ================= the control channel ================= */
+  function send(o) {
+    if (!ctl || ctl.readyState !== "open") return false;
+    var s = JSON.stringify(o);
+    ctl.send(s);
+    counts.s++; counts.b += s.length; tally(); blip("tx");
+    return true;
+  }
+  function wireCtl(c) {
+    ctl = c;
+    c.onopen = function () {
+      $("tune").hidden = true;
+      stat(420); flash();
+      setState("LOCKED"); meter("lock");
+      sys("link locked. direct, no relay. nobody in between.");
+      send({ t: "hello", name: me(), pub: myPub });
+      armed(true);
+    };
+    c.onclose = dropped;
+    c.onmessage = async function (e) {
+      counts.r++; counts.b += String(e.data).length; tally(); blip("rx");
+      var m; try { m = JSON.parse(e.data); } catch (x) { return; }
+      switch (m.t) {
+        case "hello":
+          peer.name = String(m.name || "UNKNOWN").slice(0, 24); peer.pub = m.pub;
+          peer.fp = await fingerprint(m.pub);
+          $("peerName").textContent = "LINKED: " + peer.name;
+          $("kPeerFp").textContent = peer.fp;
+          remember();
+          sys(peer.name + " is on the line. their key: " + peer.fp);
+          break;
+        case "msg":
+          line(false, m); send({ t: "read", id: m.id }); tone(880, 60, "square", .03);
+          break;
+        case "read":
+          var el = document.querySelector('[data-id="' + m.id + '"] .tick'); if (el) el.textContent = "received";
+          break;
+        case "typing":
+          $("typing").textContent = m.on ? peer.name + " is transmitting…" : "";
+          break;
+        case "nudge":
+          document.body.classList.remove("nudged"); void document.body.offsetWidth; document.body.classList.add("nudged");
+          tone(110, 260, "sawtooth", .08); setTimeout(function () { tone(90, 260, "sawtooth", .08); }, 280);
+          sys(peer.name + " nudged you");
+          break;
+        case "sdp":
+          await incomingSdp(m.d);
+          break;
+        case "ring":
+          $("ringWhat").textContent = "INCOMING " + (m.kind === "video" ? "VIDEO" : "VOICE") + " FROM " + peer.name;
+          $("ringBox").hidden = false; ringing = m.kind; tone(660, 300, "sine", .06);
+          break;
+        case "accept":
+          sys("they answered"); await startMedia(pendingKind);
+          break;
+        case "refuse":
+          sys("they refused the call"); pendingKind = null;
+          break;
+        case "hang":
+          sys("the call ended"); stopMedia(false);
+          break;
+        case "file":
+          incomingFile(m);
+          break;
+      }
+    };
+  }
+
+  async function incomingSdp(d) {
+    var collide = d.type === "offer" && (makingOffer || pc.signalingState !== "stable");
+    if (collide && !polite) return;               // the impolite side keeps its own offer
+    await pc.setRemoteDescription(d);
+    if (d.type === "offer") {
+      await pc.setLocalDescription();
+      send({ t: "sdp", d: pc.localDescription });
+    }
+  }
+
+  function armed(on) {
+    ["bVoice", "bVideo", "bScreen", "bFile", "bNudge", "bCut", "send", "msg"].forEach(function (id) { $(id).disabled = !on; });
+  }
+  function dropped() {
+    if (!ctl && !pc) return;
+    armed(false); stopMedia(false);
+    setState("DARK"); meter("");
+    $("peerName").textContent = "NO SIGNAL"; $("typing").textContent = "";
+    sys("the signal is gone");
+    ctl = null; fileCh = null;
+  }
+  $("bCut").onclick = function () { if (pc) pc.close(); dropped(); pc = null; };
+
+  function remember() {
+    var have = S.contacts.filter(function (c) { return c.fp === peer.fp; })[0];
+    if (have) { have.name = peer.name; have.pub = peer.pub; have.last = Date.now(); }
+    else S.contacts.push({ name: peer.name, fp: peer.fp, pub: peer.pub, last: Date.now() });
+    save(); drawContacts();
+  }
+  function drawContacts() {
+    var ul = $("contacts"); ul.innerHTML = "";
+    if (!S.contacts.length) { ul.innerHTML = '<li class="small">nobody yet</li>'; }
+    S.contacts.forEach(function (c) {
+      var li = document.createElement("li");
+      li.innerHTML = "<b></b><span class='small'></span>";
+      li.children[0].textContent = c.name; li.children[1].textContent = c.fp.slice(0, 9);
+      ul.appendChild(li);
+    });
+    var sel = $("ddTo"); sel.innerHTML = "";
+    S.contacts.forEach(function (c, i) { var o = document.createElement("option"); o.value = i; o.textContent = c.name + "  " + c.fp.slice(0, 9); sel.appendChild(o); });
+  }
+
+  /* ================= chat ================= */
+  function marks(t) {
+    var h = esc(t);
+    h = h.replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|\s)\*([^*]+)\*/g, "$1<i>$2</i>");
+    return h.replace(/(^|\n)&gt; ?([^\n]*)/g, "$1<blockquote>$2</blockquote>");
+  }
+  function line(mine, m) {
+    var d = document.createElement("div");
+    d.className = "m" + (mine ? " me" : "");
+    d.dataset.id = m.id;
+    d.innerHTML = '<div class="who"></div><div class="body"></div><div class="meta"></div>';
+    d.children[0].textContent = mine ? me() : peer.name;
+    d.children[1].innerHTML = marks(m.text);
+    d.children[2].innerHTML = esc(stamp(m.at)) + " &middot; " + human(enc.encode(m.text).length) + (mine ? ' &middot; <span class="tick">sent</span>' : "");
+    $("log").appendChild(d); scroll();
+  }
+  function transmit() {
+    var t = $("msg").value;
+    if (!t.trim()) return;
+    var m = { t: "msg", id: Math.random().toString(36).slice(2), text: t, at: Date.now() };
+    if (send(m)) { line(true, m); $("msg").value = ""; send({ t: "typing", on: false }); tone(1320, 40, "square", .02); }
+  }
+  $("send").onclick = transmit;
+  var typingT = 0;
+  $("msg").addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); transmit(); return; }
+    if (!typingT) send({ t: "typing", on: true });
+    clearTimeout(typingT);
+    typingT = setTimeout(function () { send({ t: "typing", on: false }); typingT = 0; }, 1500);
+  });
+  $("fmt").addEventListener("click", function (e) {
+    var k = e.target.getAttribute && e.target.getAttribute("data-m"); if (!k) return;
+    var W = { b: ["**", "**"], i: ["*", "*"], code: ["`", "`"], q: ["\n> ", ""] }[k];
+    var i = $("msg"), a = i.selectionStart, b = i.selectionEnd, v = i.value;
+    i.value = v.slice(0, a) + W[0] + v.slice(a, b) + W[1] + v.slice(b); i.focus();
+  });
+  $("bNudge").onclick = function () { send({ t: "nudge" }); sys("you nudged " + peer.name); };
+
+  /* ================= calls ================= */
+  var local = null, pendingKind = null, ringing = null, screenTrack = null;
+  function ring(kind) { pendingKind = kind; send({ t: "ring", kind: kind }); sys("calling " + peer.name + "…"); }
+  $("bVoice").onclick = function () { ring("audio"); };
+  $("bVideo").onclick = function () { ring("video"); };
+  $("ringYes").onclick = async function () { $("ringBox").hidden = true; send({ t: "accept" }); await startMedia(ringing); };
+  $("ringNo").onclick = function () { $("ringBox").hidden = true; send({ t: "refuse" }); ringing = null; };
+
+  async function startMedia(kind) {
+    try {
+      local = await navigator.mediaDevices.getUserMedia({ audio: true, video: kind === "video" });
+    } catch (e) { sys("no microphone or camera available"); return; }
+    local.getTracks().forEach(function (t) { pc.addTrack(t, local); });
+    if (kind === "video") { $("vMe").srcObject = local; }
+    $("stage").classList.add("on");
+    $("bHang").hidden = false;
+    sys(kind === "video" ? "video open" : "voice open");
+  }
+  function stopMedia(tell) {
+    if (tell) send({ t: "hang" });
+    [local].forEach(function (s) { if (s) s.getTracks().forEach(function (t) { t.stop(); }); });
+    if (screenTrack) { screenTrack.stop(); screenTrack = null; }
+    if (pc) pc.getSenders().forEach(function (s) { if (s.track) try { pc.removeTrack(s); } catch (e) {} });
+    local = null; pendingKind = null;
+    $("vMe").srcObject = null; $("vThem").srcObject = null;
+    $("stage").classList.remove("on"); $("bHang").hidden = true;
+  }
+  $("bHang").onclick = function () { stopMedia(true); sys("you ended the call"); };
+  $("bScreen").onclick = async function () {
+    try {
+      var s = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      screenTrack = s.getVideoTracks()[0];
+      pc.addTrack(screenTrack, s);
+      $("vMe").srcObject = s; $("stage").classList.add("on"); $("bHang").hidden = false;
+      screenTrack.onended = function () { sys("screen share ended"); };
+      sys("sharing your screen");
+    } catch (e) { sys("screen share cancelled"); }
+  };
+
+  /* ================= files ================= */
+  var CHUNK = 16384, incoming = null;
+  function wireFile(c) {
+    fileCh = c; c.binaryType = "arraybuffer";
+    c.bufferedAmountLowThreshold = 1 << 20;
+    c.onmessage = function (e) {
+      if (!incoming) return;
+      incoming.parts.push(e.data); incoming.got += e.data.byteLength;
+      counts.b += e.data.byteLength; tally(); blip("rx");
+      incoming.bar.style.width = (incoming.got / incoming.size * 100).toFixed(1) + "%";
+      if (incoming.got >= incoming.size) {
+        var blob = new Blob(incoming.parts, { type: incoming.type || "application/octet-stream" });
+        var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = incoming.name;
+        a.textContent = "save " + incoming.name;
+        incoming.box.appendChild(a);
+        tone(990, 90, "sine", .05);
+        incoming = null;
+      }
+    };
+  }
+  function fileCard(mine, name, size) {
+    var d = document.createElement("div");
+    d.className = "m file" + (mine ? " me" : "");
+    d.innerHTML = '<div class="who"></div><div class="body"></div><div class="bar"><i></i></div>';
+    d.children[0].textContent = mine ? me() : peer.name;
+    d.children[1].textContent = name + " · " + human(size);
+    $("log").appendChild(d); scroll();
+    return { box: d, bar: d.querySelector(".bar i") };
+  }
+  function incomingFile(m) {
+    var c = fileCard(false, m.name, m.size);
+    incoming = { name: m.name, size: m.size, type: m.type, got: 0, parts: [], box: c.box, bar: c.bar };
+  }
+  $("bFile").onclick = function () { $("fileIn").value = ""; $("fileIn").click(); };
+  $("fileIn").onchange = async function () {
+    for (var i = 0; i < this.files.length; i++) await sendFile(this.files[i]);
+  };
+  async function sendFile(f) {
+    if (!fileCh || fileCh.readyState !== "open") return;
+    send({ t: "file", name: f.name, size: f.size, type: f.type });
+    var c = fileCard(true, f.name, f.size), off = 0;
+    while (off < f.size) {
+      if (fileCh.bufferedAmount > fileCh.bufferedAmountLowThreshold) {
+        await new Promise(function (r) { fileCh.onbufferedamountlow = function () { fileCh.onbufferedamountlow = null; r(); }; });
+      }
+      var chunk = await f.slice(off, off + CHUNK).arrayBuffer();
+      fileCh.send(chunk);
+      off += chunk.byteLength;
+      counts.b += chunk.byteLength; tally(); blip("tx");
+      c.bar.style.width = (off / f.size * 100).toFixed(1) + "%";
+    }
+  }
+
+  /* ================= dead drops ================= */
+  document.querySelectorAll(".closeV").forEach(function (b) { b.onclick = function () { b.closest(".veil").hidden = true; }; });
+  $("ddWrite").onclick = function () {
+    if (!S.contacts.length) { alert("Link with someone once, and they'll be here to leave drops for."); return; }
+    $("ddOut").value = ""; $("ddWriteBox").hidden = false;
+  };
+  $("ddOpen").onclick = function () { $("ddIn").value = ""; $("ddShow").textContent = ""; $("ddOpenBox").hidden = false; };
+  $("ddSeal").onclick = async function () {
+    var c = S.contacts[+$("ddTo").value]; if (!c) return;
+    var k = await shared(c.pub), iv = crypto.getRandomValues(new Uint8Array(12));
+    var body = JSON.stringify({ from: me(), fp: myFp, pub: myPub, text: $("ddText").value, at: Date.now() });
+    var ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, k, enc.encode(body));
+    var raw = btoa(JSON.stringify({ v: 1, pub: myPub, iv: b64(iv), ct: b64(ct) }));
+    $("ddOut").value = "=== BLACKOUT DROP ===\n" + raw.replace(/(.{64})/g, "$1\n") + "\n=== END ===";
+    stat(160);
+  };
+  $("ddCopy").onclick = function () { $("ddOut").select(); document.execCommand("copy"); };
+  $("ddRead").onclick = async function () {
+    try {
+      var raw = $("ddIn").value.replace(/===[^=]+===/g, "").replace(/\s+/g, "");
+      var p = JSON.parse(atob(raw));
+      var k = await shared(p.pub);
+      var plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(p.iv) }, k, unb64(p.ct));
+      var m = JSON.parse(dec.decode(plain));
+      $("ddShow").innerHTML = '<div class="amber">FROM ' + esc(m.from) + " · " + esc(m.fp) + "</div><div class='small'>" +
+        esc(stamp(m.at)) + "</div><div style='margin-top:8px'></div>";
+      $("ddShow").lastChild.textContent = m.text;
+      stat(160);
+    } catch (e) { $("ddShow").textContent = "this drop wasn't meant for you, or it has been tampered with."; }
+  };
+
+  $("railBtn").onclick = function () { $("app").classList.toggle("railOn"); };
+
+  identity().then(drawContacts);
+  window.BLACKOUT = { state: function () { return { ctl: ctl && ctl.readyState, pc: pc && pc.connectionState }; } };
+})();
+</script>
+</body>
+</html>
