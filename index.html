@@ -159,6 +159,54 @@ textarea{resize:vertical;width:100%}
 #onair.live i{background:#ff4a3e;box-shadow:0 0 12px 3px rgba(255,74,62,.8);animation:air 1.4s ease-in-out infinite}
 @keyframes air{50%{opacity:.55}}
 
+/* ── Mail ── */
+#mailBtn{position:relative}
+#mailBadge{position:absolute;top:-7px;right:-7px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;
+  background:var(--amber);color:#000;font-size:10px;line-height:17px;text-align:center;font-weight:bold;text-shadow:none}
+#mail{flex:1;display:grid;grid-template-columns:170px 300px 1fr;min-height:0;border-top:1px solid var(--edge)}
+#mail[hidden]{display:none!important}
+#mFold{border-right:1px solid var(--edge);padding:12px;display:flex;flex-direction:column;gap:6px;background:#050805}
+#mFold .fold{text-align:left;display:flex;justify-content:space-between}
+#mFold .fold.on{border-color:var(--ink);background:#0b150c}
+#mList{border-right:1px solid var(--edge);overflow-y:auto;min-height:0}
+.mRow{padding:10px 12px;border-bottom:1px solid var(--faint);cursor:pointer}
+.mRow:hover{background:#0a120b}
+.mRow.on{background:#0f1c10;box-shadow:inset 3px 0 0 var(--ink)}
+.mRow.unread .mSubj{color:#fff;font-weight:bold}
+.mRow.unread::before{content:"";float:right;width:8px;height:8px;border-radius:50%;background:var(--amber);margin-top:4px;box-shadow:0 0 6px var(--amber)}
+.mWho{font-size:11px;letter-spacing:.12em;color:var(--dim)}
+.mSubj{margin:2px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mSnip{font-size:11px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mWhen{font-size:10.5px;color:var(--dim)}
+.mEmpty{padding:18px;color:var(--dim);font-size:12px}
+#mRead{overflow-y:auto;min-height:0;padding:18px 22px}
+#mRead h2{margin:0 0 6px;font-size:18px;letter-spacing:.04em}
+.mMeta{font-size:12px;color:var(--dim);margin-bottom:12px;border-bottom:1px solid var(--faint);padding-bottom:10px}
+.mMeta b{color:var(--ink);font-weight:normal}
+.mStatus{color:var(--amber)}
+.mActs{display:flex;gap:6px;margin-bottom:14px}
+.mBody{background:#0b120c;border:1px solid var(--faint);padding:16px 18px;line-height:1.6;color:#e6f5e9;word-break:break-word;font-family:Georgia,"Times New Roman",serif;font-size:15px}
+.mBody img{max-width:100%;height:auto}
+.mBody a{color:var(--amber)}
+.mBody blockquote{margin:8px 0;padding-left:12px;border-left:3px solid var(--dim);color:var(--dim)}
+@media (max-width:900px){#mail{grid-template-columns:1fr}#mFold{flex-direction:row;flex-wrap:wrap}#mList{max-height:30vh}}
+
+/* compose */
+#compBox .card{width:min(820px,96vw);max-height:92vh;display:flex;flex-direction:column}
+#cTo,#cSubj{width:100%;margin-bottom:8px}
+#cTools{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;align-items:center}
+#cTools button{padding:4px 8px;min-width:28px}
+#cTools select{padding:4px}
+#cTools input[type=color]{width:30px;height:26px;padding:0}
+#cBody{min-height:260px;max-height:48vh;overflow-y:auto;background:#0b120c;border:1px solid var(--edge);padding:14px 16px;
+  color:#e6f5e9;font-family:Georgia,"Times New Roman",serif;font-size:15px;line-height:1.6;outline:none}
+#cBody:focus{border-color:var(--dim)}
+#cBody img{max-width:100%;height:auto}
+#cBody blockquote{margin:8px 0;padding-left:12px;border-left:3px solid var(--dim);color:var(--dim)}
+#cBody:empty::before{content:"Write your message…";color:var(--dim)}
+#cFoot{display:flex;gap:8px;align-items:center;margin-top:10px}
+#cNote{font-size:12px;color:var(--amber);margin-left:auto}
+
 /* hover help */
 #tip{position:fixed;z-index:80;max-width:300px;pointer-events:none;opacity:0;transition:opacity .12s;
   background:#060b07;border:1px solid var(--dim);padding:8px 10px;font-size:12px;line-height:1.45;color:var(--ink);
@@ -265,6 +313,7 @@ body.nudged #app{animation:jolt .45s linear 2}
       <button id="railBtn">&#9776;</button>
       <div id="peerName" class="glow">NO SIGNAL</div>
       <span id="onair"><i></i>ON AIR</span>
+      <button id="mailBtn">Mail<span id="mailBadge" hidden></span></button>
       <button id="bTune" class="amberBtn">Connect</button>
       <button id="bVoice" disabled>Voice</button>
       <button id="bVideo" disabled>Video</button>
@@ -339,6 +388,17 @@ body.nudged #app{animation:jolt .45s linear 2}
       <textarea id="tCode" hidden></textarea>
     </div>
 
+    <div id="mail" hidden>
+      <div id="mFold">
+        <button id="mNew" class="hot">Write</button>
+        <button class="fold on" data-f="inbox">Inbox <span id="nIn"></span></button>
+        <button class="fold" data-f="sent">Sent <span id="nSent"></span></button>
+        <button id="mBack" style="margin-top:auto">&larr; Back to chat</button>
+      </div>
+      <div id="mList"></div>
+      <div id="mRead"><div class="mEmpty">Choose a message to read it.</div></div>
+    </div>
+
     <div id="log"><div class="sys">the grid is down. nobody is listening. press connect to reach someone.</div></div>
     <div id="typing"></div>
 
@@ -369,6 +429,33 @@ body.nudged #app{animation:jolt .45s linear 2}
   <textarea id="ddIn" style="height:130px;font-size:11px" placeholder="Paste the sealed drop"></textarea>
   <div class="row" style="margin-top:8px"><button id="ddRead" class="hot">Open it</button><button class="closeV">Close</button></div>
   <div id="ddShow" style="margin-top:10px;white-space:pre-wrap"></div>
+</div></div>
+
+<!-- compose -->
+<div class="veil" id="compBox" hidden><div class="card">
+  <h2 class="glow">WRITE A LETTER</h2>
+  <select id="cTo"></select>
+  <input id="cSubj" placeholder="Subject" maxlength="200">
+  <div id="cTools">
+    <button data-c="bold"><b>B</b></button><button data-c="italic"><i>I</i></button>
+    <button data-c="underline"><u>U</u></button><button data-c="strikeThrough"><s>S</s></button>
+    <select id="cSize"><option value="">Size</option><option value="2">Small</option><option value="3">Normal</option><option value="5">Large</option><option value="7">Huge</option></select>
+    <input id="cColor" type="color" value="#ffb347">
+    <button data-c="insertUnorderedList">&bull; List</button><button data-c="insertOrderedList">1. List</button>
+    <button data-c="quote">&ldquo;</button>
+    <button data-c="justifyLeft">&#8676;</button><button data-c="justifyCenter">&#8596;</button><button data-c="justifyRight">&#8677;</button>
+    <button data-c="link">Link</button>
+    <button data-c="image">Picture</button>
+    <button data-c="insertHorizontalRule">&mdash;</button>
+    <button data-c="removeFormat">Clear</button>
+    <input id="cPic" type="file" accept="image/*" multiple hidden>
+  </div>
+  <div id="cBody" contenteditable="true"></div>
+  <div id="cFoot">
+    <button id="cSend" class="hot">Send</button>
+    <button id="cDiscard">Discard</button>
+    <span id="cNote"></span>
+  </div>
 </div></div>
 
 <!-- incoming call -->
@@ -1042,7 +1129,264 @@ body.nudged #app{animation:jolt .45s linear 2}
     return b64(proof);
   }
 
+
+  /* ================= Mail ================= */
+  // Letters are sealed to the recipient's key, held by the switchboard until they
+  // arrive, and kept on each machine in the browser's own database.
+  var mdb = null, folder = "inbox", openId = null;
+  function mOpen() {
+    return new Promise(function (res) {
+      if (mdb) return res(mdb);
+      var r = indexedDB.open("blackoutMail", 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore("mail", { keyPath: "id" }); };
+      r.onsuccess = function () { mdb = r.result; res(mdb); };
+      r.onerror = function () { res(null); };
+    });
+  }
+  function mTx(mode) { return mdb.transaction("mail", mode).objectStore("mail"); }
+  async function mPut(m) { await mOpen(); return new Promise(function (r) { var q = mTx("readwrite").put(m); q.onsuccess = q.onerror = function () { r(); }; }); }
+  async function mGet(id) { await mOpen(); return new Promise(function (r) { var q = mTx("readonly").get(id); q.onsuccess = function () { r(q.result); }; q.onerror = function () { r(null); }; }); }
+  async function mAll() { await mOpen(); return new Promise(function (r) { var q = mTx("readonly").getAll(); q.onsuccess = function () { r(q.result || []); }; q.onerror = function () { r([]); }; }); }
+  async function mDel(id) { await mOpen(); return new Promise(function (r) { var q = mTx("readwrite").delete(id); q.onsuccess = q.onerror = function () { r(); }; }); }
+
+  // Anything that arrives is rebuilt from a short list of safe pieces. Nothing
+  // in a letter can run, load from elsewhere, or reach outside the page.
+  var SAFE = { B:1, STRONG:1, I:1, EM:1, U:1, S:1, STRIKE:1, DEL:1, P:1, DIV:1, BR:1, SPAN:1, FONT:1,
+               H1:1, H2:1, H3:1, UL:1, OL:1, LI:1, BLOCKQUOTE:1, A:1, IMG:1, HR:1 };
+  function clean(html) {
+    var doc = new DOMParser().parseFromString("<body>" + html + "</body>", "text/html");
+    (function walk(n) {
+      var c = n.firstChild;
+      while (c) {
+        var next = c.nextSibling;
+        if (c.nodeType === 1) {
+          if (!SAFE[c.tagName]) {
+            if (/^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|LINK|META|FORM|INPUT|BUTTON|TEXTAREA|SVG|MATH|TEMPLATE)$/.test(c.tagName)) n.removeChild(c);
+            else { walk(c); while (c.firstChild) n.insertBefore(c.firstChild, c); n.removeChild(c); }
+          } else {
+            for (var i = c.attributes.length - 1; i >= 0; i--) {
+              var a = c.attributes[i].name, v = c.attributes[i].value;
+              var keep = (a === "href" && c.tagName === "A" && /^(https?:|mailto:)/i.test(v)) ||
+                         (a === "src" && c.tagName === "IMG" && /^data:image\/(png|jpe?g|gif|webp);base64,/i.test(v)) ||
+                         (a === "alt" && c.tagName === "IMG") ||
+                         (a === "size" && c.tagName === "FONT" && /^[1-7]$/.test(v)) ||
+                         (a === "color" && c.tagName === "FONT" && /^#[0-9a-f]{3,8}$/i.test(v));
+              if (a === "style") {
+                var st = [];
+                if (c.style.color) st.push("color:" + c.style.color);
+                if (c.style.textAlign) st.push("text-align:" + c.style.textAlign);
+                if (st.length) { c.setAttribute("style", st.join(";")); continue; }
+              }
+              if (!keep) c.removeAttribute(a);
+            }
+            if (c.tagName === "A") { c.setAttribute("target", "_blank"); c.setAttribute("rel", "noopener noreferrer"); }
+            walk(c);
+          }
+        } else if (c.nodeType !== 3) n.removeChild(c);
+        c = next;
+      }
+    })(doc.body);
+    return doc.body.innerHTML;
+  }
+  function snippet(html) { var d = document.createElement("div"); d.innerHTML = html; return (d.textContent || "").replace(/\s+/g, " ").trim().slice(0, 90); }
+
+  // ── the screen ──
+  function mailView(on) {
+    $("mail").hidden = !on;
+    ["log", "typing", "compose", "tune", "stage"].forEach(function (id) { var e = $(id); if (e) e.style.display = on ? "none" : ""; });
+    if (on) drawList();
+  }
+  $("mailBtn").onclick = function () { mailView($("mail").hidden); };
+  $("mBack").onclick = function () { mailView(false); };
+  document.querySelectorAll("#mFold .fold").forEach(function (b) {
+    b.onclick = function () {
+      folder = b.dataset.f; openId = null;
+      document.querySelectorAll("#mFold .fold").forEach(function (x) { x.classList.toggle("on", x === b); });
+      $("mRead").innerHTML = '<div class="mEmpty">Choose a message to read it.</div>';
+      drawList();
+    };
+  });
+
+  async function drawList() {
+    var all = await mAll();
+    var unread = all.filter(function (m) { return m.folder === "inbox" && !m.read; }).length;
+    $("nIn").textContent = unread ? unread : "";
+    $("nSent").textContent = "";
+    badge(unread);
+    var list = all.filter(function (m) { return m.folder === folder; }).sort(function (a, b) { return b.at - a.at; });
+    var box = $("mList"); box.innerHTML = "";
+    if (!list.length) {
+      box.innerHTML = '<div class="mEmpty">' + (folder === "inbox" ? "No letters yet. When a known survivor writes to you, it arrives here." : "Nothing sent yet.") + "</div>";
+      return;
+    }
+    list.forEach(function (m) {
+      var r = document.createElement("div");
+      r.className = "mRow" + (m.id === openId ? " on" : "") + (m.folder === "inbox" && !m.read ? " unread" : "");
+      r.innerHTML = '<div class="mWho"></div><div class="mSubj"></div><div class="mSnip"></div><div class="mWhen"></div>';
+      r.children[0].textContent = m.folder === "inbox" ? "FROM " + m.fromName : "TO " + m.toName;
+      r.children[1].textContent = m.subject || "(no subject)";
+      r.children[2].textContent = snippet(m.html);
+      r.children[3].textContent = new Date(m.at).toLocaleString() + (m.folder === "sent" ? "  ·  " + statusText(m.status) : "");
+      r.onclick = function () { readMail(m.id); };
+      box.appendChild(r);
+    });
+  }
+  function statusText(st) {
+    return st === "delivered" ? "delivered" : st === "held" ? "waiting for them" : st === "failed" ? "not sent" : "sending…";
+  }
+  function badge(n) { var b = $("mailBadge"); b.hidden = !n; b.textContent = n; }
+
+  async function readMail(id) {
+    var m = await mGet(id); if (!m) return;
+    openId = id;
+    if (m.folder === "inbox" && !m.read) { m.read = true; await mPut(m); }
+    var R = $("mRead"); R.innerHTML = "";
+    var h = document.createElement("h2"); h.textContent = m.subject || "(no subject)"; R.appendChild(h);
+    var meta = document.createElement("div"); meta.className = "mMeta";
+    meta.innerHTML = (m.folder === "inbox" ? "From <b></b>" : "To <b></b>") + " &middot; " + esc(new Date(m.at).toLocaleString()) +
+      (m.folder === "sent" ? ' &middot; <span class="mStatus"></span>' : "");
+    meta.querySelector("b").textContent = m.folder === "inbox" ? m.fromName + "  (" + m.from.slice(0, 9) + ")" : m.toName;
+    if (m.folder === "sent") meta.querySelector(".mStatus").textContent = statusText(m.status);
+    R.appendChild(meta);
+    var acts = document.createElement("div"); acts.className = "mActs";
+    if (m.folder === "inbox") {
+      var rep = document.createElement("button"); rep.textContent = "Reply"; rep.className = "hot";
+      rep.onclick = function () { compose({ to: m.from, subject: /^re:/i.test(m.subject) ? m.subject : "Re: " + (m.subject || ""),
+        html: "<br><br><blockquote>" + clean(m.html) + "</blockquote>" }); };
+      acts.appendChild(rep);
+    }
+    var del = document.createElement("button"); del.textContent = "Delete"; del.className = "warn";
+    del.onclick = async function () {
+      if (!del.armed) { del.armed = true; del.textContent = "sure?"; setTimeout(function () { del.armed = false; del.textContent = "Delete"; }, 3000); return; }
+      await mDel(m.id); openId = null; $("mRead").innerHTML = '<div class="mEmpty">Deleted.</div>'; drawList();
+    };
+    acts.appendChild(del);
+    R.appendChild(acts);
+    var body = document.createElement("div"); body.className = "mBody"; body.innerHTML = clean(m.html);
+    R.appendChild(body);
+    drawList();
+  }
+
+  // ── writing ──
+  function compose(pre) {
+    pre = pre || {};
+    var sel = $("cTo"); sel.innerHTML = "";
+    if (!S.contacts.length) { sel.innerHTML = "<option value=''>No known survivors yet — connect with someone first</option>"; }
+    S.contacts.forEach(function (c) {
+      var o = document.createElement("option"); o.value = c.fp; o.textContent = c.name + "   " + c.fp.slice(0, 9);
+      if (c.fp === pre.to) o.selected = true;
+      sel.appendChild(o);
+    });
+    $("cSubj").value = pre.subject || "";
+    $("cBody").innerHTML = pre.html || "";
+    $("cNote").textContent = "";
+    $("compBox").hidden = false;
+    setTimeout(function () { (pre.to ? $("cBody") : $("cSubj")).focus(); }, 50);
+  }
+  $("mNew").onclick = function () { compose(); };
+  $("cDiscard").onclick = function () { $("compBox").hidden = true; };
+
+  var cRange = null;
+  function keepSel() { var s = getSelection(); if (s.rangeCount && $("cBody").contains(s.anchorNode)) cRange = s.getRangeAt(0).cloneRange(); }
+  function backSel() { $("cBody").focus(); if (cRange) { var s = getSelection(); s.removeAllRanges(); s.addRange(cRange); } }
+  $("cBody").addEventListener("keyup", keepSel); $("cBody").addEventListener("mouseup", keepSel);
+  $("cTools").addEventListener("mousedown", function (e) { if (e.target.closest("button")) e.preventDefault(); });
+  $("cTools").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-c]"); if (!b) return;
+    var c = b.dataset.c; backSel();
+    if (c === "quote") document.execCommand("formatBlock", false, "<blockquote>");
+    else if (c === "link") { var u = prompt("Link to:", "https://"); if (u && /^(https?:|mailto:)/i.test(u)) document.execCommand("createLink", false, u); }
+    else if (c === "image") { keepSel(); $("cPic").value = ""; $("cPic").click(); return; }
+    else document.execCommand(c, false, null);
+    keepSel();
+  });
+  $("cSize").onchange = function () { if (!this.value) return; backSel(); document.execCommand("fontSize", false, this.value); this.value = ""; };
+  $("cColor").oninput = function () { backSel(); document.execCommand("foreColor", false, this.value); };
+
+  // pictures go inside the letter, shrunk if they're large; animated GIFs are left alone
+  function shrink(file) {
+    return new Promise(function (res) {
+      var fr = new FileReader();
+      fr.onload = function () {
+        if (file.type === "image/gif" && file.size < 3e6) return res(fr.result);
+        var img = new Image();
+        img.onload = function () {
+          var k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+          var cv = document.createElement("canvas"); cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k);
+          cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+          res(cv.toDataURL("image/jpeg", 0.84));
+        };
+        img.onerror = function () { res(null); };
+        img.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+  async function addPics(files) {
+    for (var i = 0; i < files.length; i++) {
+      if (!/^image\//.test(files[i].type)) continue;
+      var url = await shrink(files[i]); if (!url) continue;
+      backSel();
+      document.execCommand("insertHTML", false, '<img src="' + url + '" alt=""><br>');
+      keepSel();
+    }
+  }
+  $("cPic").onchange = function () { addPics(this.files); };
+  $("cBody").addEventListener("paste", function (e) {
+    var items = (e.clipboardData || {}).items || [];
+    for (var i = 0; i < items.length; i++) if (items[i].kind === "file" && /^image\//.test(items[i].type)) { e.preventDefault(); addPics([items[i].getAsFile()]); return; }
+  });
+  $("cBody").addEventListener("drop", function (e) {
+    var f = e.dataTransfer && e.dataTransfer.files;
+    if (f && f.length) { e.preventDefault(); addPics(f); }
+  });
+
+  $("cSend").onclick = async function () {
+    var fp = $("cTo").value, c = S.contacts.filter(function (x) { return x.fp === fp; })[0];
+    if (!c) { $("cNote").textContent = "Choose who it's for."; return; }
+    if (!sb || sb.readyState !== 1) { $("cNote").textContent = "Connect to your switchboard first — it carries the letter."; return; }
+    var html = clean($("cBody").innerHTML);
+    if (!snippet(html) && html.indexOf("<img") < 0) { $("cNote").textContent = "There's nothing written yet."; return; }
+    var id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    var letter = { kind: "letter", subject: $("cSubj").value.trim(), html: html, at: Date.now(), fromName: me() };
+    $("cNote").textContent = "Sealing…";
+    var box = await sealTo(c.pub, letter);
+    if (box.length > 14 * 1024 * 1024) { $("cNote").textContent = "Too big to send — use fewer or smaller pictures."; return; }
+    await mPut({ id: id, folder: "sent", to: c.fp, toName: c.name, subject: letter.subject, html: html, at: letter.at, status: "sending" });
+    sb.send(JSON.stringify({ t: "post", fp: c.fp, id: id, box: box }));
+    $("compBox").hidden = true;
+    stat(160); tone(1180, 70, "sine", .05);
+    if (!$("mail").hidden) drawList();
+  };
+
+  // ── arriving, and the switchboard's news about letters we sent ──
+  async function mailIn(m) {
+    if (m.t === "letter") {
+      if (await mGet(m.id)) { sb.send(JSON.stringify({ t: "got", id: m.id })); return; }   // already have it
+      var got; try { got = await openBox(m.box); } catch (e) { return; }
+      var fromFp = await fingerprint(got.pub);
+      if (fromFp !== m.from) return;
+      var known = S.contacts.filter(function (c) { return c.fp === fromFp; })[0];
+      if (!known || got.body.kind !== "letter") return;
+      await mPut({ id: m.id, folder: "inbox", from: fromFp, fromName: known.name, subject: String(got.body.subject || "").slice(0, 200),
+                   html: clean(String(got.body.html || "")), at: got.body.at || m.at, read: false });
+      sb.send(JSON.stringify({ t: "got", id: m.id }));
+      tone(660, 90, "sine", .06); setTimeout(function () { tone(990, 120, "sine", .06); }, 110);
+      sys("a letter from " + known.name + " arrived in your inbox");
+      drawList();
+      return true;
+    }
+    if (m.t === "posted" || m.t === "delivered") {
+      var s2 = await mGet(m.id); if (!s2) return true;
+      s2.status = m.t === "delivered" ? "delivered" : m.ok ? (m.live ? "sending" : "held") : "failed";
+      await mPut(s2);
+      if (!$("mail").hidden) { drawList(); if (openId === m.id) readMail(m.id); }
+      return true;
+    }
+  }
+
   async function sbIn(m) {
+    if (m.t === "letter" || m.t === "posted" || m.t === "delivered") { await mailIn(m); return; }
     if (m.t === "challenge") {
       try {
         var proof = await prove(m);
@@ -1164,6 +1508,12 @@ body.nudged #app{animation:jolt .45s linear 2}
     sbAddr: ["Switchboard address", "Where your Switchboard is running, like ws://192.168.1.20:7373. It's shown in the Switchboard's window when it starts."],
     sbGo: ["Connect", "Puts this station on the air through your Switchboard, so known survivors can call you and you can call them with no codes."],
     sbState: ["Switchboard status", "Whether you're on the air, and whether stations outside your network can reach it."],
+    mailBtn: ["Mail", "Your inbox. Letters from known survivors wait here, and you can write to anyone you've connected with — even when they're offline."],
+    mNew: ["Write", "Opens a new letter."],
+    cTo: ["To", "Who it's for. Only known survivors can be written to."],
+    cSend: ["Send", "Seals the letter to their key and hands it to your switchboard. If they're offline it waits for them, for up to 30 days."],
+    cDiscard: ["Discard", "Closes the letter without sending it."],
+    cBody: ["Your letter", "Write here. Use the toolbar to format, or drop and paste pictures straight in."],
     railBtn: ["Station panel", "Shows or hides your callsign, receiver and dead drops on a small screen."],
     stage: ["Picture", "The other person's video or screen is on the left, yours on the right."]
   };
@@ -1205,7 +1555,7 @@ body.nudged #app{animation:jolt .45s linear 2}
     document.addEventListener("mousedown", function () { clearTimeout(timer); tip.classList.remove("on"); });
   })();
 
-  identity().then(function () { drawContacts(); if (S.sb) sbConnect(); });
+  identity().then(function () { drawContacts(); if (S.sb) sbConnect(); mOpen().then(drawList); });
   window.BLACKOUT = { state: function () { return { ctl: ctl && ctl.readyState, pc: pc && pc.connectionState }; } };
 })();
 </script>
