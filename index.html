@@ -669,7 +669,7 @@ body.nudged #app{animation:jolt .45s linear 2}
       sys("link locked. direct, no relay. nobody in between.");
       send({ t: "hello", name: me(), pub: myPub });
       armed(true);
-      if (pendingCall) { var pc2 = pendingCall; pendingCall = null; setTimeout(function () { ring(pc2.kind); }, 600); }
+      if (pendingCall) { pendingCall = null; sys("connected to their station through the switchboard."); }
     };
     c.onclose = dropped;
     c.onmessage = async function (e) {
@@ -759,8 +759,24 @@ body.nudged #app{animation:jolt .45s linear 2}
       var li = document.createElement("li");
       li.innerHTML = "<b></b><span class='small'></span><button>Call</button>";
       li.children[0].textContent = c.name; li.children[1].textContent = c.fp.slice(0, 9);
-      li.children[2].dataset.tip = JSON.stringify(["Call " + c.name, "Rings them through your Switchboard. No codes to swap. They need BLACKOUT open and connected to the same Switchboard."]);
+      li.children[2].dataset.tip = JSON.stringify(["Call " + c.name, "Connects you to their station through your Switchboard, with no codes to swap. They need BLACKOUT open and connected to the same Switchboard."]);
       li.children[2].onclick = function () { callVia(c, "audio"); };
+      // remove: press once to arm, again to confirm, so a slip can't delete anyone
+      var x = document.createElement("button");
+      x.textContent = "\u00d7"; x.className = "warn";
+      x.dataset.tip = JSON.stringify(["Remove " + c.name, "Forgets this survivor and their key. Press once, then again within three seconds to confirm. You can link with them again any time."]);
+      x.onclick = function () {
+        if (!x.armed) {
+          x.armed = true; x.textContent = "sure?";
+          x.t = setTimeout(function () { x.armed = false; x.textContent = "\u00d7"; }, 3000);
+          return;
+        }
+        clearTimeout(x.t);
+        S.contacts = S.contacts.filter(function (k) { return k.fp !== c.fp; });
+        save(); drawContacts();
+        sys(c.name + " removed from known survivors.");
+      };
+      li.appendChild(x);
       ul.appendChild(li);
     });
     var sel = $("ddTo"); sel.innerHTML = "";
@@ -971,7 +987,7 @@ body.nudged #app{animation:jolt .45s linear 2}
   /* ================= the Switchboard ================= */
   // Our own introducer. It carries sealed envelopes between stations so they can
   // link without anyone swapping codes, and it never sees what's inside them.
-  var sb = null, sbStun = "", sbWanted = false, sbRetry = 1000, pendingCall = null;
+  var sb = null, sbStun = "", sbWanted = false, sbRetry = 1000, pendingCall = null, sbTimer = 0;
 
   async function sealTo(pubJwk, obj) {
     var k = await shared(pubJwk), iv = crypto.getRandomValues(new Uint8Array(12));
@@ -991,16 +1007,24 @@ body.nudged #app{animation:jolt .45s linear 2}
     if (!addr) { sbSay("enter the switchboard's address", "bad"); return; }
     if (!/^wss?:\/\//.test(addr)) addr = "ws://" + addr;
     S.sb = addr; save(); sbWanted = true;
-    try { if (sb) sb.close(); } catch (e) {}
+    clearTimeout(sbTimer);
+    if (sb) {
+      var old = sb;
+      old.onopen = old.onmessage = old.onclose = old.onerror = null;
+      try { old.close(); } catch (e) {}
+    }
     sbSay("calling the switchboard…");
     try { sb = new WebSocket(addr); } catch (e) { sbSay("that address won't work", "bad"); return; }
     sb.onopen = function () { sbRetry = 1000; sb.send(JSON.stringify({ t: "on", fp: myFp })); };
     sb.onmessage = function (e) { var m; try { m = JSON.parse(e.data); } catch (x) { return; } sbIn(m); };
+    var mine = sb;
     sb.onclose = function () {
+      if (mine !== sb) return;                 // only the current connection may retry
       sbStun = "";
       if (!sbWanted) return sbSay("not connected");
-      sbSay("lost the switchboard — retrying", "bad");
-      setTimeout(function () { if (sbWanted) sbConnect(); }, sbRetry);
+      sbSay("lost the switchboard — retrying in " + Math.round(sbRetry / 1000) + "s", "bad");
+      clearTimeout(sbTimer);
+      sbTimer = setTimeout(function () { if (sbWanted) sbConnect(); }, sbRetry);
       sbRetry = Math.min(sbRetry * 2, 30000);
     };
     sb.onerror = function () { sbSay("can't reach the switchboard", "bad"); };
@@ -1051,7 +1075,7 @@ body.nudged #app{animation:jolt .45s linear 2}
   // Click a name: link through the switchboard, then ring them.
   async function callVia(c, kind) {
     if (!sb || sb.readyState !== 1) { sys("connect to a switchboard first"); return; }
-    if (ctl && ctl.readyState === "open" && peer.fp === c.fp) { ring(kind); return; }
+    if (ctl && ctl.readyState === "open" && peer.fp === c.fp) { sys("you're already connected to " + c.name + "."); return; }
     pendingCall = { fp: c.fp, kind: kind };
     sys("raising " + c.name + " through the switchboard…");
     newPC(); polite = false;
