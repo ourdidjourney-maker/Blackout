@@ -473,12 +473,13 @@ body.nudged #app{animation:jolt .45s linear 2}
   var keys = null, myPub = null, myFp = "";
   async function identity() {
     if (S.id) {
+      var pj = Object.assign({}, S.id.priv); delete pj.key_ops;     // widen what the key may do; the key itself is unchanged
       keys = {
-        priv: await crypto.subtle.importKey("jwk", S.id.priv, { name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey"]),
+        priv: await crypto.subtle.importKey("jwk", pj, { name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey", "deriveBits"]),
         pub: S.id.pub
       };
     } else {
-      var k = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey"]);
+      var k = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey", "deriveBits"]);
       S.id = { priv: await crypto.subtle.exportKey("jwk", k.privateKey), pub: await crypto.subtle.exportKey("jwk", k.publicKey) };
       save();
       keys = { priv: k.privateKey, pub: S.id.pub };
@@ -1015,7 +1016,7 @@ body.nudged #app{animation:jolt .45s linear 2}
     }
     sbSay("calling the switchboard…");
     try { sb = new WebSocket(addr); } catch (e) { sbSay("that address won't work", "bad"); return; }
-    sb.onopen = function () { sbRetry = 1000; sb.send(JSON.stringify({ t: "on", fp: myFp })); };
+    sb.onopen = function () { sbRetry = 1000; sbSay("proving who you are…"); };
     sb.onmessage = function (e) { var m; try { m = JSON.parse(e.data); } catch (x) { return; } sbIn(m); };
     var mine = sb;
     sb.onclose = function () {
@@ -1032,7 +1033,24 @@ body.nudged #app{animation:jolt .45s linear 2}
   $("sbGo").onclick = sbConnect;
   $("sbAddr").value = S.sb || "";
 
+  // Answer the switchboard's challenge with a code only our private key can make.
+  async function prove(m) {
+    var theirs = await crypto.subtle.importKey("jwk", m.pub, { name: "ECDH", namedCurve: "P-256" }, true, []);
+    var secret = await crypto.subtle.deriveBits({ name: "ECDH", public: theirs }, keys.priv, 256);
+    var mac = await crypto.subtle.importKey("raw", secret, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    var proof = await crypto.subtle.sign("HMAC", mac, unb64(m.nonce));
+    return b64(proof);
+  }
+
   async function sbIn(m) {
+    if (m.t === "challenge") {
+      try {
+        var proof = await prove(m);
+        sb.send(JSON.stringify({ t: "on", fp: myFp, pub: myPub, proof: proof }));
+      } catch (e) { sbSay("couldn't prove who you are", "bad"); }
+      return;
+    }
+    if (m.t === "refused") { sbWanted = false; sbSay("refused: " + m.why, "bad"); return; }
     if (m.t === "welcome") {
       var host = new URL(S.sb.replace(/^ws/, "http")).hostname;
       sbStun = host + ":" + m.stun;
