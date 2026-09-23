@@ -1930,6 +1930,7 @@ body.nudged #app{animation:jolt .45s linear 2}
      Things you put out for others to READ. Nobody can alter them, and a staged
      page is shown with scripts off and no way to reach the network. */
   var sdb = null, shelfSide = "mine", shelfOpen = null, theirShelf = [], pulling = null;
+  var shelfMem = {};          // contents this session, for browsers that won't keep them
   function shOpen() {
     return new Promise(function (res) {
       if (sdb) return res(sdb);
@@ -1984,9 +1985,16 @@ body.nudged #app{animation:jolt .45s linear 2}
   async function stage(f) {
     if (f.size > 20 * 1024 * 1024) { sys(f.name + " is too big for the shelf (20 MB limit)"); return; }
     var buf = await f.arrayBuffer();
-    await sPut({ id: Math.random().toString(36).slice(2) + Date.now().toString(36), name: f.name,
-                 type: f.type || "application/octet-stream", kind: kindFor(f.name, f.type || ""), size: f.size,
-                 at: Date.now(), data: buf });
+    var id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    shelfMem[id] = buf;
+    await sPut({ id: id, name: f.name, type: f.type || "application/octet-stream",
+                 kind: kindFor(f.name, f.type || ""), size: f.size, at: Date.now(), data: buf });
+    var back = await sGet(id);
+    var kept = back && back.data && (back.data.byteLength || back.data.size);
+    if (!kept) {
+      sys("your browser wouldn't keep " + f.name + " (" + human(f.size) + "). it works now, but it is gone when you close BLACKOUT — opening BLACKOUT from a page rather than a file on disk lifts that limit.");
+      note("storage refused " + f.name + " — kept in memory only", "warn");
+    }
     return true;
   }
 
@@ -1999,7 +2007,8 @@ body.nudged #app{animation:jolt .45s linear 2}
   var SH_PIECE = 48 * 1024;
   async function serveItem(id) {
     var it = await sGet(id);
-    if (!it) { send({ t: "shelfNo", id: id }); return; }
+    if (it && (!it.data || !(it.data.byteLength || it.data.size)) && shelfMem[id]) it = Object.assign({}, it, { data: shelfMem[id] });
+    if (!it || !it.data) { send({ t: "shelfNo", id: id }); return; }
     var b64s = b64(it.data), n = Math.ceil(b64s.length / SH_PIECE);
     send({ t: "shelfHead", id: id, name: it.name, type: it.type, kind: it.kind, size: it.size, parts: n });
     for (var i = 0; i < n; i++) {
@@ -2029,12 +2038,13 @@ body.nudged #app{animation:jolt .45s linear 2}
       head.appendChild(rm);
     }
     var kind = kindOfItem(it);
+    if ((!it.data || !(it.data.byteLength || it.data.size)) && shelfMem[it.id]) it = Object.assign({}, it, { data: shelfMem[it.id] });
     var bytes = it.data ? (it.data.byteLength || it.data.size || 0) : 0;
     head.children[1].textContent = kind + " · " + human(it.size) + " · view only";
     if (!bytes) {                       // staged before the shelf kept contents properly
       var warn = document.createElement("div");
       warn.className = "mEmpty";
-      warn.textContent = "This one was put on the shelf before the shelf was working properly, so its contents were never kept. Take it off and add it again.";
+      warn.textContent = "The contents of this one were never kept — either it was staged by an older build, or your browser refused to store a file that size. Take it off and add it again; if it keeps happening, open BLACKOUT from a page rather than a file on disk.";
       V.appendChild(warn);
       drawShelf();
       return;
@@ -2098,7 +2108,7 @@ body.nudged #app{animation:jolt .45s linear 2}
       r.innerHTML = '<div class="shName"></div><div class="shMeta"></div>';
       r.children[0].textContent = it.name;
       r.children[1].textContent = kindOfItem(it) + " · " + human(it.size) +
-        (shelfSide === "mine" && it.data && !(it.data.byteLength || it.data.size) ? " · empty, add again" : "");
+        (shelfSide === "mine" && !shelfMem[it.id] && (!it.data || !(it.data.byteLength || it.data.size)) ? " · empty, add again" : "");
       r.onclick = function () {
         if (shelfSide === "theirs" && !it.data) { shelfOpen = it.id; send({ t: "get", id: it.id }); drawShelf(); return; }
         showItem(it);
