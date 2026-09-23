@@ -457,7 +457,8 @@ body.nudged #app{animation:jolt .45s linear 2}
         <button class="shTab on" data-s="mine">My shelf <span id="shNMine"></span></button>
         <button class="shTab" data-s="theirs">Their shelf <span id="shNTheirs"></span></button>
         <button id="shPull">Refresh theirs</button>
-        <button id="shBack" style="margin-top:auto">&larr; Back to chat</button>
+        <div id="shWhere" class="small" style="margin-top:auto"></div>
+        <button id="shBack">&larr; Back to chat</button>
       </div>
       <div id="shList"></div>
       <div id="shView"><div class="mEmpty">Choose something to view it.</div></div>
@@ -1946,10 +1947,36 @@ body.nudged #app{animation:jolt .45s linear 2}
   async function sAll() { await shOpen(); return new Promise(function (r) { var q = sTx("readonly").getAll(); q.onsuccess = function () { r(q.result || []); }; q.onerror = function () { r([]); }; }); }
   async function sDel(id) { await shOpen(); return new Promise(function (r) { var q = sTx("readwrite").delete(id); q.onsuccess = q.onerror = function () { r(); }; }); }
 
+  // Does this browser actually keep what we put on the shelf?
+  var shelfKeeps = null;
+  async function checkStore() {
+    try {
+      var probe = new Uint8Array(256 * 1024).buffer;
+      await sPut({ id: "__probe", name: "probe", type: "", kind: "file", size: probe.byteLength, at: Date.now(), data: probe });
+      var back = await sGet("__probe");
+      shelfKeeps = !!(back && back.data && back.data.byteLength === probe.byteLength);
+      await sDel("__probe");
+    } catch (e) { shelfKeeps = false; }
+    var w = $("shWhere");
+    if (shelfKeeps) w.innerHTML = '<span class="good">Storage: keeping files between sessions.</span>';
+    else w.innerHTML = '<span class="warn">Storage: this browser will not keep files, because BLACKOUT was opened from a file on disk. ' +
+      'Anything you put on the shelf works now and is readable by anyone connected, but it is gone when you close BLACKOUT.</span>';
+    return shelfKeeps;
+  }
+
   function shelfView(on) {
     $("shelf").hidden = !on;
     ["log", "typing", "compose", "tune", "stage", "mail"].forEach(function (id) { var e = $(id); if (e) e.style.display = on ? "none" : ""; });
-    if (on) drawShelf();
+    if (on) { drawShelf(); if (shelfKeeps === null) checkStore().then(sweep); else sweep(); }
+  }
+  async function sweep() {
+    var all = await sAll(), gone = [];
+    for (var i = 0; i < all.length; i++) {
+      var it = all[i];
+      if (it.id === "__probe") { await sDel(it.id); continue; }
+      if (!shelfMem[it.id] && (!it.data || !(it.data.byteLength || it.data.size))) { gone.push(it.name); await sDel(it.id); }
+    }
+    if (gone.length) { sys("cleared from the shelf, contents were never kept: " + gone.join(", ")); drawShelf(); }
   }
   $("shelfBtn").onclick = function () { shelfView($("shelf").hidden); };
   $("shBack").onclick = function () { shelfView(false); };
