@@ -218,6 +218,23 @@ textarea{resize:vertical;width:100%}
 /* Firefox, which doesn't read the rules above */
 @supports (-moz-appearance:none){*{scrollbar-width:thin;scrollbar-color:#2f5a3a #050805}}
 
+#tList,#kList{display:grid;gap:4px;margin-top:6px}
+#kList label{display:flex;gap:8px;align-items:center;font-size:13px}
+#kList input{width:auto}
+#kList select,#kList input[type=number]{padding:3px 6px;font-size:12px}
+#tList label{display:flex;gap:8px;align-items:center;font-size:13px}
+#tList input{width:auto}
+#tList select,#tList input[type=number]{padding:3px 6px;font-size:12px}
+.contract{align-self:center;font-size:11px;letter-spacing:.12em;color:var(--amber);text-align:center;max-width:80%}
+
+#sbLog{margin-top:6px;max-height:190px;overflow-y:auto;font-size:10.5px;line-height:1.45;border:1px solid var(--faint);background:#030503;padding:6px}
+#sbLog div{border-bottom:1px solid rgba(47,90,54,.25);padding:2px 0;word-break:break-word}
+#sbLog .bad{color:var(--red)}
+#sbLog .good{color:var(--ink)}
+#sbLog .warn{color:var(--amber)}
+.small.warn{color:var(--amber)}
+.small.good{color:var(--ink)}
+
 /* hover help */
 #tip{position:fixed;z-index:80;max-width:300px;pointer-events:none;opacity:0;transition:opacity .12s;
   background:#060b07;border:1px solid var(--dim);padding:8px 10px;font-size:12px;line-height:1.45;color:var(--ink);
@@ -299,13 +316,17 @@ body.nudged #app{animation:jolt .45s linear 2}
 
     <div class="box">
       <h3>Switchboard</h3>
-      <div class="row"><input id="sbAddr" placeholder="ws://192.168.1.20:7373" spellcheck="false"></div>
+      <div class="row"><input id="sbAddr" placeholder="station code" spellcheck="false"></div>
       <div class="row" style="margin-top:6px"><button id="sbGo">Connect</button><span id="sbState" class="small">not connected</span></div>
+      <div class="row" style="margin-top:6px"><button id="sbLogBtn">Log</button><button id="sbCopyLog">Copy log</button></div>
+      <div id="sbLog" hidden></div>
+      <div class="row" id="sbCodeRow" hidden style="margin-top:6px"><span class="small">station code</span><b id="sbCode" class="amber" style="font-weight:normal"></b><button id="sbCopy">Copy</button><span id="sbCodeWhere" class="small"></span></div>
     </div>
 
     <div class="box">
       <h3>Known survivors</h3>
       <ul id="contacts"></ul>
+      <div class="row" style="margin-top:6px"><input id="reachFp" placeholder="their key, e.g. 6B2C-3CBA-…" spellcheck="false"><button id="reachGo">Reach</button></div>
       <div class="small">Anyone you've linked with is kept here, so you can leave them a dead drop.</div>
     </div>
 
@@ -324,6 +345,7 @@ body.nudged #app{animation:jolt .45s linear 2}
       <button id="railBtn">&#9776;</button>
       <div id="peerName" class="glow">NO SIGNAL</div>
       <span id="onair"><i></i>ON AIR</span>
+      <button id="termsBtn">Terms</button>
       <button id="mailBtn">Mail<span id="mailBadge" hidden></span></button>
       <button id="bTune" class="amberBtn">Connect</button>
       <button id="bVoice" disabled>Voice</button>
@@ -467,6 +489,32 @@ body.nudged #app{animation:jolt .45s linear 2}
     <button id="cDiscard">Discard</button>
     <span id="cNote"></span>
   </div>
+</div></div>
+
+<!-- an unknown station is calling -->
+<div class="veil" id="knockBox" hidden><div class="card">
+  <h2 class="amber">A STATION YOU DON'T KNOW</h2>
+  <p class="small" style="margin:0 0 8px">Nobody you've connected with before is on the other end. You can let them in under strict terms, or turn them away.</p>
+  <div class="kv"><span>callsign they claim</span><b id="kName">—</b></div>
+  <div class="kv"><span>their key</span><b id="kFp">—</b></div>
+  <div style="margin:10px 0"><div class="small">They would be allowed:</div><div id="kTerms" class="glow"></div></div>
+  <div class="small" style="margin-bottom:4px">Tick what they may send you:</div>
+  <div id="kList"></div>
+  <div class="row" style="margin-top:10px"><button id="kYes" class="hot">Let them in</button><button id="kNo" class="warn">Turn away</button></div>
+</div></div>
+
+<!-- terms -->
+<div class="veil" id="termsBox" hidden><div class="card">
+  <h2 class="glow">TERMS OF THIS LINK</h2>
+  <p class="small" style="margin:0 0 6px">What <b id="tWho">this station</b> is allowed to send you. Tightening takes effect at once.</p>
+  <div id="tList"></div>
+  <div class="row" style="margin-top:10px">
+    <button id="tSave" class="hot">Apply</button>
+    <button id="tStrict">Strict</button>
+    <button id="tOpen">Open</button>
+    <button class="closeV">Close</button>
+  </div>
+  <p class="small" style="margin-top:8px">Strangers always start strict. Known survivors start open, unless you say otherwise here.</p>
 </div></div>
 
 <!-- incoming call -->
@@ -632,17 +680,33 @@ body.nudged #app{animation:jolt .45s linear 2}
     $("kSent").textContent = counts.s; $("kRecv").textContent = counts.r; $("kBytes").textContent = human(counts.b);
   }
 
+  var found = { host: 0, srflx: 0, relay: 0 }, theirs = { host: 0, srflx: 0, relay: 0 }, tryTimer = 0;
   function newPC() {
     if (pc) try { pc.close(); } catch (e) {}
+    found = { host: 0, srflx: 0, relay: 0 }; theirs = { host: 0, srflx: 0, relay: 0 }; explained = false;
+    clearTimeout(tryTimer);
     // With a Switchboard, stations ask it for their public address, so links can
     // cross networks. Without one, they stay on the local network.
     var ice = sbStun ? [{ urls: "stun:" + sbStun }] : [];
     pc = new RTCPeerConnection({ iceServers: ice });
+    pc.onicecandidate = function (e) {
+      if (!e.candidate) return;
+      var t = (/ typ (\w+)/.exec(e.candidate.candidate) || [])[1] || "host";
+      if (found[t] != null) found[t]++;
+    };
+    pc.onicecandidateerror = function (e) {
+      if (e.errorCode >= 300) logTrouble("address lookup refused (" + e.errorCode + ")");
+    };
+    pc.oniceconnectionstatechange = function () { note("ice: " + pc.iceConnectionState); };
+    pc.onsignalingstatechange = function () { note("signalling: " + pc.signalingState); };
     pc.onconnectionstatechange = function () {
+      note("connection: " + pc.connectionState);
       var st = pc.connectionState;
+      if (st === "connected") clearTimeout(tryTimer);
       if (st === "connecting") { setState("TUNING"); meter("tune"); }
       if (st === "connected") { setState("LOCKED"); meter("lock"); }
-      if (st === "failed" || st === "disconnected" || st === "closed") { dropped(); }
+      if (st === "failed") { explain(); }
+      else if (st === "disconnected" || st === "closed") { dropped(); }
     };
     // perfect negotiation: either side can add a call at any time without jamming
     pc.onnegotiationneeded = async function () {
@@ -661,9 +725,109 @@ body.nudged #app{animation:jolt .45s linear 2}
     };
     pc.ondatachannel = function (e) {
       if (e.channel.label === "ctl") wireCtl(e.channel);
-      if (e.channel.label === "file") wireFile(e.channel);
+      if (e.channel.label === "file") {
+        if (!allow.files) { try { e.channel.close(); } catch (x) {} sys("their file channel was refused by your terms"); return; }
+        wireFile(e.channel);
+      }
     };
     return pc;
+  }
+
+  var troubles = [];
+  function logTrouble(t) { if (troubles.indexOf(t) < 0) troubles.push(t); }
+
+  // Exactly what each side offered and what was tried, in plain words.
+  async function report() {
+    var mine = { host: found.host, srflx: found.srflx, relay: found.relay };
+    var lines = ["YOUR SIDE: " + mine.host + " local address(es), " + mine.srflx + " public address(es)",
+                 "THEIR SIDE: " + theirs.host + " local address(es), " + theirs.srflx + " public address(es)"];
+    try {
+      var stats = await pc.getStats(), pairs = [], cand = {};
+      stats.forEach(function (r) { if (r.type === "local-candidate" || r.type === "remote-candidate") cand[r.id] = r; });
+      stats.forEach(function (r) {
+        if (r.type !== "candidate-pair") return;
+        var L = cand[r.localCandidateId] || {}, R = cand[r.remoteCandidateId] || {};
+        pairs.push({ state: r.state, mine: (L.candidateType || "?") + " " + (L.protocol || ""), theirs: (R.candidateType || "?") + " " + (R.address || ""),
+                     sent: r.requestsSent || 0, got: r.responsesReceived || 0 });
+      });
+      lines.push("routes tried: " + pairs.length);
+      pairs.slice(0, 6).forEach(function (p) {
+        lines.push("  " + p.mine + " \u2192 " + p.theirs + "  [" + p.state + "]  asked " + p.sent + ", answered " + p.got +
+                   (p.sent > 0 && p.got === 0 ? "  \u2190 they never answered" : ""));
+      });
+      var answered = pairs.filter(function (p) { return p.got > 0; }).length;
+      if (!pairs.length) {
+        var seen = [];
+        stats.forEach(function (r) {
+          if (r.type === "local-candidate") seen.push("yours: " + r.candidateType + " " + (r.protocol || ""));
+          if (r.type === "remote-candidate") seen.push("theirs: " + r.candidateType + " " + (r.address || ""));
+        });
+        lines.push("no routes were left to report — the attempt was already torn down");
+        seen.slice(0, 8).forEach(function (l) { lines.push("  " + l); });
+      }
+      else if (!answered) lines.push("every route was tried and NONE answered: the far side is dropping the packets, so the block is on their network, not yours");
+      else lines.push("some routes answered but none completed — usually a router that changes ports on the way out (strict NAT)");
+    } catch (e) { lines.push("could not read the connection details: " + e.message); }
+    return lines;
+  }
+
+  // What we learned while trying, turned into something a person can act on.
+  var explained = false;
+  async function explain() {
+    if (explained) return;
+    explained = true;
+    var det = await report();                      // while the connection still holds its details
+    var lines = ["the connection could not be made."];
+    if (theirs.host + theirs.srflx === 0) {
+      lines.push("their code carried no way to reach them. it may be old — codes only work for one session.");
+    } else if (!found.srflx && !theirs.srflx) {
+      lines.push("neither machine learned its public address, so this can only work on the same network.");
+      lines.push(sbStun ? "your switchboard's address lookup (udp " + sbStun.split(":")[1] + ") isn't getting through — that port needs forwarding."
+                        : "connect to a switchboard first: it provides the address lookup that lets links cross networks.");
+    } else if (found.srflx && theirs.srflx) {
+      lines.push("both machines found their public addresses but no route between them.");
+      lines.push("one of the two routers is refusing direct connections. forwarding the switchboard's ports on the machine that runs it usually fixes this.");
+    } else {
+      var who = found.srflx ? "their machine" : "your machine";
+      lines.push(who + " never learned its public address — that side has no switchboard, or its address lookup port is blocked.");
+    }
+    var who = peer.pub ? peer : target;
+    if (who && who.pub && sb && sb.readyState === 1) {
+      relayFp = who.fp; relayPub = who.pub;
+      peer.name = peer.name || who.name; peer.fp = peer.fp || who.fp; peer.pub = peer.pub || who.pub;
+      lines.push("RELAYED THROUGH YOUR SWITCHBOARD — you can talk now. messages, nudges and letters go through. files and calls need a direct route.");
+      setState("RELAYED"); meter("lock");
+      note("relay on: talking to " + (who.name || "them") + " through the switchboard, still sealed end to end", "good");
+      setTimeout(function () { linkOpened(who.name, who.fp, who.pub); }, 300);
+      armed(true); $("bFile").disabled = true; $("bVoice").disabled = true; $("bVideo").disabled = true; $("bScreen").disabled = true;
+      $("peerName").textContent = "RELAYED: " + (who.name || "unknown");
+      flash(); stat(240);
+    } else {
+      lines.push("no relay available: connect to a switchboard and try again.");
+    }
+    if (troubles.length) lines.push("also: " + troubles.join("; "));
+    troubles = [];
+    lines.forEach(sys);
+    det.forEach(function (l) { sys(l); note(l); });
+    setTimeout(function () { if (relayFp) send({ t: "diag", lines: det, who: me() }); }, 1200);
+    dropped();                                     // now let it go
+    say(lines[0] + " " + lines[1]);
+    setState("DARK"); meter("");
+  }
+
+  // Count what the other side offered, and give up with an explanation rather than hanging.
+  function watchTry() {
+    clearTimeout(tryTimer);
+    tryTimer = setTimeout(function () {
+      if (pc && pc.connectionState !== "connected" && (!ctl || ctl.readyState !== "open")) explain();
+    }, 45000);
+  }
+  function countTheirs(sdp) {
+    theirs = { host: 0, srflx: 0, relay: 0 };
+    String(sdp.sdp || "").split("\n").forEach(function (l) {
+      var t = (/ typ (\w+)/.exec(l) || [])[1];
+      if (t && theirs[t] != null) theirs[t]++;
+    });
   }
 
   function gather() {
@@ -725,7 +889,8 @@ body.nudged #app{animation:jolt .45s linear 2}
     try { d = unpack($("tReply").value); } catch (e) { say("That doesn't look like a reply code. Paste the whole thing they sent."); return; }
     if (d.type !== "answer") { say("That's a starting code, not a reply. Ask them for the reply code they made from yours."); return; }
     if (!pc) { say("Do step 1 first."); return; }
-    await pc.setRemoteDescription(d);
+    try { countTheirs(d); await pc.setRemoteDescription(d); watchTry(); }
+    catch (e) { say("That reply code couldn't be used: " + e.message + ". Ask them to make a fresh one from your latest code."); return; }
     step("s2", "done"); step("s3", "done");
     say("Connecting…");
     stat(180);
@@ -737,8 +902,10 @@ body.nudged #app{animation:jolt .45s linear 2}
     try { d = unpack($("tTheirs").value); } catch (e) { say("That doesn't look like a code. Paste the whole thing they sent."); return; }
     if (d.type !== "offer") { say("That's a reply code. It goes back to the person who started — they paste it in their step 3."); return; }
     newPC(); polite = true;
-    await pc.setRemoteDescription(d);
-    await pc.setLocalDescription(await pc.createAnswer());
+    try {
+      countTheirs(d); await pc.setRemoteDescription(d); watchTry();
+      await pc.setLocalDescription(await pc.createAnswer());
+    } catch (e) { say("That code couldn't be used: " + e.message + ". Ask them to press Make my code again and send the new one."); return; }
     say("Making your reply code…"); meter("tune"); setState("TUNING");
     await gather();
     $("tMyReply").value = pack(pc.localDescription);
@@ -752,13 +919,25 @@ body.nudged #app{animation:jolt .45s linear 2}
   };
 
   /* ================= the control channel ================= */
+  var relayFp = null, relayPub = null;      // talking through the switchboard when no direct route exists
   function send(o) {
-    if (!ctl || ctl.readyState !== "open") return false;
-    var s = JSON.stringify(o);
-    ctl.send(s);
-    counts.s++; counts.b += s.length; tally(); blip("tx");
-    return true;
+    if (ctl && ctl.readyState === "open") {
+      var s = JSON.stringify(o);
+      ctl.send(s);
+      counts.s++; counts.b += s.length; tally(); blip("tx");
+      return true;
+    }
+    if (relayFp && relayPub && sb && sb.readyState === 1) {
+      sealTo(relayPub, { kind: "relay", m: o }).then(function (box) {
+        try { sb.send(JSON.stringify({ t: "to", fp: relayFp, box: box })); } catch (e) {}
+      });
+      counts.s++; tally(); blip("tx");
+      return true;
+    }
+    return false;
   }
+  // Everything that arrives, however it travelled.
+  async function handleCtl(m, c) { await ctlMessage(m, c); }
   function wireCtl(c) {
     ctl = c;
     c.onopen = function () {
@@ -771,21 +950,38 @@ body.nudged #app{animation:jolt .45s linear 2}
       if (pendingCall) { pendingCall = null; sys("connected to their station through the switchboard."); }
     };
     c.onclose = dropped;
-    c.onmessage = async function (e) {
+    c.onmessage = function (e) {
       counts.r++; counts.b += String(e.data).length; tally(); blip("rx");
       var m; try { m = JSON.parse(e.data); } catch (x) { return; }
+      ctlMessage(m, c);
+    };
+  }
+
+  async function ctlMessage(m, c) {
+    {
       switch (m.t) {
         case "hello":
           peer.name = String(m.name || "UNKNOWN").slice(0, 24); peer.pub = m.pub;
           peer.fp = await fingerprint(m.pub);
+          linkOpened(peer.name, peer.fp, m.pub);
           lockSeed = parseInt(peer.fp.slice(0, 4), 16) ^ parseInt(myFp.slice(0, 4), 16);
           meter('lock');
           $("peerName").textContent = "LINKED: " + peer.name;
           $("kPeerFp").textContent = peer.fp;
-          remember();
+          if (knockOk) remember();
           sys(peer.name + " is on the line. their key: " + peer.fp);
           break;
+        case "terms":
+          peerAllow = m.terms || {};
+          agreed();
+          break;
+        case "diag":
+          sys("——— " + String(m.who || "their").toUpperCase() + " SIDE REPORTS ———");
+          (m.lines || []).slice(0, 12).forEach(function (l) { sys(String(l).slice(0, 160)); note("[them] " + l); });
+          break;
         case "msg":
+          if (!knockOk) break;
+          if (!allow.rich) m = Object.assign({}, m, { plain: true });
           line(false, m); send({ t: "read", id: m.id }); tone(880, 60, "square", .03);
           break;
         case "read":
@@ -795,6 +991,7 @@ body.nudged #app{animation:jolt .45s linear 2}
           $("typing").textContent = m.on ? peer.name + " is transmitting…" : "";
           break;
         case "nudge":
+          if (!knockOk || !allow.nudge) { sys("a nudge was refused by your terms"); break; }
           document.body.classList.remove("nudged"); void document.body.offsetWidth; document.body.classList.add("nudged");
           tone(110, 260, "sawtooth", .08); setTimeout(function () { tone(90, 260, "sawtooth", .08); }, 280);
           sys(peer.name + " nudged you");
@@ -803,6 +1000,9 @@ body.nudged #app{animation:jolt .45s linear 2}
           await incomingSdp(m.d);
           break;
         case "ring":
+          if (!knockOk || (m.kind === "video" ? !allow.video : !allow.voice)) {
+            send({ t: "refuse" }); sys("a " + (m.kind === "video" ? "video" : "voice") + " call was refused by your terms"); break;
+          }
           $("ringWhat").textContent = "INCOMING " + (m.kind === "video" ? "VIDEO" : "VOICE") + " FROM " + peer.name;
           $("ringBox").hidden = false; ringing = m.kind; tone(660, 300, "sine", .06);
           break;
@@ -816,16 +1016,25 @@ body.nudged #app{animation:jolt .45s linear 2}
           sys("the call ended"); stopMedia(false);
           break;
         case "file":
+          if (!knockOk || !allow.files) { sys("a file was refused by your terms: " + String(m.name || "").slice(0, 40)); break; }
+          if (m.size > allow.max * 1024 * 1024) { sys("a file larger than your limit was refused: " + String(m.name || "").slice(0, 40)); break; }
           incomingFile(m);
           break;
       }
-    };
+    }
   }
 
   async function incomingSdp(d) {
+    if (d.type === "offer" && /^m=(audio|video)/m.test(String(d.sdp || ""))) {
+      var wantsAudio = /^m=audio/m.test(d.sdp), wantsVideo = /^m=video/m.test(d.sdp);
+      if (!knockOk || (wantsVideo && !allow.video && !allow.screen) || (wantsAudio && !allow.voice)) {
+        sys("they tried to open a call or screen share — refused by your terms");
+        return;
+      }
+    }
     var collide = d.type === "offer" && (makingOffer || pc.signalingState !== "stable");
     if (collide && !polite) return;               // the impolite side keeps its own offer
-    await pc.setRemoteDescription(d);
+    countTheirs(d); await pc.setRemoteDescription(d); watchTry();
     if (d.type === "offer") {
       await pc.setLocalDescription();
       send({ t: "sdp", d: pc.localDescription });
@@ -836,14 +1045,26 @@ body.nudged #app{animation:jolt .45s linear 2}
     ["bVoice", "bVideo", "bScreen", "bFile", "bNudge", "bCut", "send", "msg"].forEach(function (id) { $(id).disabled = !on; });
   }
   function dropped() {
-    if (!ctl && !pc) return;
+    callingSince = 0;
+    ctl = null; fileCh = null;
+    if (relayFp) {                       // the direct route is gone, but the relay is carrying us
+      stopMedia(false);
+      setState("RELAYED"); meter("lock");
+      armed(true);
+      $("bFile").disabled = true; $("bVoice").disabled = true; $("bVideo").disabled = true; $("bScreen").disabled = true;
+      return;
+    }
+    if (!pc) return;
     armed(false); stopMedia(false);
     setState("DARK"); meter("");
     $("peerName").textContent = "NO SIGNAL"; $("typing").textContent = "";
     sys("the signal is gone");
-    ctl = null; fileCh = null;
   }
-  $("bCut").onclick = function () { if (pc) pc.close(); dropped(); pc = null; };
+  $("bCut").onclick = function () {
+    relayFp = null; relayPub = null; target = null;
+    if (pc) pc.close();
+    dropped(); pc = null;
+  };
 
   function remember() {
     var have = S.contacts.filter(function (c) { return c.fp === peer.fp; })[0];
@@ -894,7 +1115,7 @@ body.nudged #app{animation:jolt .45s linear 2}
     d.dataset.id = m.id;
     d.innerHTML = '<div class="who"></div><div class="body"></div><div class="meta"></div>';
     d.children[0].textContent = mine ? me() : peer.name;
-    d.children[1].innerHTML = marks(m.text);
+    if (m.plain) d.children[1].textContent = m.text; else d.children[1].innerHTML = marks(m.text);
     d.children[2].innerHTML = esc(stamp(m.at)) + " &middot; " + human(enc.encode(m.text).length) + (mine ? ' &middot; <span class="tick">sent</span>' : "");
     $("log").appendChild(d); scroll();
   }
@@ -967,13 +1188,21 @@ body.nudged #app{animation:jolt .45s linear 2}
   function wireFile(c) {
     fileCh = c; c.binaryType = "arraybuffer";
     c.bufferedAmountLowThreshold = 1 << 20;
-    c.onmessage = function (e) {
-      if (!incoming) return;
+    c.onmessage = async function (e) {
+      if (!incoming || !allow.files) return;
       incoming.parts.push(e.data); incoming.got += e.data.byteLength;
       counts.b += e.data.byteLength; tally(); blip("rx");
       incoming.bar.style.width = (incoming.got / incoming.size * 100).toFixed(1) + "%";
       if (incoming.got >= incoming.size) {
         var blob = new Blob(incoming.parts, { type: incoming.type || "application/octet-stream" });
+        var head = await blob.slice(0, 12).arrayBuffer();
+        var kind = kindOf(head);
+        if (!kindAllowed(kind)) {
+          incoming.box.querySelector(".body").textContent = incoming.name + " — refused: it is a " + kind + " file, which your terms don't allow";
+          incoming.bar.style.background = "var(--red)";
+          sys("a file was refused: " + incoming.name + " is really a " + kind + " file");
+          incoming = null; return;
+        }
         var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = incoming.name;
         a.textContent = "save " + incoming.name;
         incoming.box.appendChild(a);
@@ -1086,7 +1315,17 @@ body.nudged #app{animation:jolt .45s linear 2}
   /* ================= the Switchboard ================= */
   // Our own introducer. It carries sealed envelopes between stations so they can
   // link without anyone swapping codes, and it never sees what's inside them.
-  var sb = null, sbStun = "", sbWanted = false, sbRetry = 1000, pendingCall = null, sbTimer = 0;
+  var sb = null, sbStun = "", sbWanted = false, sbRetry = 1000, pendingCall = null, sbTimer = 0, sbCode = "";
+  var sbBeat = 0, sbSeen = 0, sbCodeOutside = false;
+  // Browsers report a close with a number; this says what it means in plain words.
+  function closeWhy(e) {
+    var c = e && e.code, r = e && e.reason;
+    var why = { 1000: "closed normally", 1001: "the other end went away (window closed, machine slept, or network changed)",
+                1005: "closed with no reason given — usually the connection was cut in the middle",
+                1006: "cut without a proper goodbye — a router, firewall or wi-fi drop, or the switchboard stopped",
+                1011: "the switchboard hit an error", 1012: "the switchboard restarted", 1013: "the switchboard is too busy" }[c];
+    return (why || "closed") + " (code " + (c == null ? "?" : c) + (r ? ", " + r : "") + ")";
+  }
 
   async function sealTo(pubJwk, obj) {
     var k = await shared(pubJwk), iv = crypto.getRandomValues(new Uint8Array(12));
@@ -1099,12 +1338,68 @@ body.nudged #app{animation:jolt .45s linear 2}
     var plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(p.iv) }, k, unb64(p.ct));
     return { pub: p.pub, body: JSON.parse(dec.decode(plain)) };
   }
+  // A station code instead of an address: short, readable, and it checks itself.
+  var A32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+  function un32(str) {
+    var bits = 0, val = 0, out = [];
+    for (var i = 0; i < str.length; i++) {
+      var v = A32.indexOf(str[i]);
+      if (v < 0) return null;
+      val = (val << 5) | v; bits += 5;
+      if (bits >= 8) { out.push((val >>> (bits - 8)) & 255); bits -= 8; }
+    }
+    return out;
+  }
+  function ckSum(bytes) { var c = 0x5A; for (var i = 0; i < bytes.length; i++) c = ((c << 1 | c >>> 7) ^ bytes[i]) & 255; return c; }
+  function fromCode(code) {
+    var t = String(code).trim().toUpperCase().replace(/^BO-?/, "").replace(/[-\s]/g, "")
+      .replace(/O/g, "0").replace(/[IL]/g, "1").replace(/U/g, "V");
+    var b = un32(t);
+    if (!b || b.length < 4) return null;
+    var body = b.slice(0, b.length - 1), sum = b[b.length - 1];
+    if (ckSum(body) !== sum) return null;
+    var port = (body[body.length - 2] << 8) | body[body.length - 1];
+    if (body[0] === 0 && body.length === 7) return "ws://" + body.slice(1, 5).join(".") + ":" + port;
+    if (body[0] === 1) {
+      var host = "";
+      for (var i = 1; i < body.length - 2; i++) host += String.fromCharCode(body[i]);
+      return "ws://" + host + ":" + port;
+    }
+    return null;
+  }
+
+  // Everything that happens with the switchboard, kept with the time it happened.
+  var sbLog = [];
+  function note(text, cls) {
+    var t = new Date();
+    sbLog.push(t.toLocaleTimeString() + "  " + text);
+    if (sbLog.length > 200) sbLog.shift();
+    var box = $("sbLog");
+    var d = document.createElement("div");
+    if (cls) d.className = cls;
+    d.textContent = t.toLocaleTimeString() + "  " + text;
+    box.appendChild(d);
+    while (box.children.length > 200) box.removeChild(box.firstChild);
+    box.scrollTop = box.scrollHeight;
+  }
+  $("sbLogBtn").onclick = function () { $("sbLog").hidden = !$("sbLog").hidden; };
+  $("sbCopyLog").onclick = function () {
+    var i = document.createElement("textarea");
+    i.value = sbLog.join("\n"); document.body.appendChild(i); i.select();
+    document.execCommand("copy"); i.remove();
+    sbSay("log copied", "live");
+  };
+
   function sbSay(t, cls) { var e = $("sbState"); e.textContent = t; e.className = "small" + (cls ? " " + cls : ""); }
 
   function sbConnect() {
     var addr = $("sbAddr").value.trim();
     if (!addr) { sbSay("enter the switchboard's address", "bad"); return; }
-    if (!/^wss?:\/\//.test(addr)) addr = "ws://" + addr;
+    if (/^BO/i.test(addr)) {
+      var got = fromCode(addr);
+      if (!got) { sbSay("that station code isn't right — check it and try again", "bad"); return; }
+      addr = got;
+    } else if (!/^wss?:\/\//.test(addr)) addr = "ws://" + addr;
     S.sb = addr; save(); sbWanted = true;
     clearTimeout(sbTimer);
     if (sb) {
@@ -1113,21 +1408,59 @@ body.nudged #app{animation:jolt .45s linear 2}
       try { old.close(); } catch (e) {}
     }
     sbSay("calling the switchboard…");
+    note("calling " + addr + (/^BO/i.test($("sbAddr").value.trim()) ? "  (from station code " + $("sbAddr").value.trim().toUpperCase() + ")" : ""), "warn");
     try { sb = new WebSocket(addr); } catch (e) { sbSay("that address won't work", "bad"); return; }
-    sb.onopen = function () { sbRetry = 1000; sbSay("proving who you are…"); };
-    sb.onmessage = function (e) { var m; try { m = JSON.parse(e.data); } catch (x) { return; } sbIn(m); };
+    sb.onopen = function () {
+      sbRetry = 1000; sbSay("proving who you are…");
+      note("connected to " + addr + " — proving who you are", "good");
+      clearInterval(sbBeat);
+      sbBeat = setInterval(function () {
+        if (!sb || sb.readyState !== 1) return;
+        try { sb.send(JSON.stringify({ t: "ping" })); } catch (e) {}
+        if (Date.now() - sbSeen > 70000) { note("no answer from the switchboard for 70s — reconnecting", "bad"); try { sb.close(); } catch (e) {} }
+      }, 20000);
+    };
+    sb.onmessage = function (e) {
+      sbSeen = Date.now();
+      var m; try { m = JSON.parse(e.data); } catch (x) { return; }
+      if (m.t !== "pong") note("received: " + m.t + (m.why ? " (" + m.why + ")" : ""));
+      sbIn(m);
+    };
     var mine = sb;
     sb.onclose = function () {
       if (mine !== sb) return;                 // only the current connection may retry
+      clearInterval(sbBeat);
+      var why = closeWhy(arguments[0]);
+      note("the switchboard link closed — " + why, "bad");
       sbStun = "";
       if (!sbWanted) return sbSay("not connected");
       sbSay("lost the switchboard — retrying in " + Math.round(sbRetry / 1000) + "s", "bad");
+      note("retrying in " + Math.round(sbRetry / 1000) + "s", "warn");
       clearTimeout(sbTimer);
       sbTimer = setTimeout(function () { if (sbWanted) sbConnect(); }, sbRetry);
       sbRetry = Math.min(sbRetry * 2, 30000);
     };
-    sb.onerror = function () { sbSay("can't reach the switchboard", "bad"); };
+    sb.onerror = function () {
+      sbSay("can't reach the switchboard", "bad");
+      var priv = /^ws:\/\/(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|127\.)/.test(addr);
+      note("could not reach " + addr + " — nothing is listening there, or a firewall is in the way", "bad");
+      if (priv) note("that code is a home-network address. it only works for machines on the same network as the switchboard. ask them for the code marked 'for outside'.", "bad");
+    };
   }
+  function showCode() {
+    $("sbCodeRow").hidden = !sbCode;
+    $("sbCode").textContent = sbCode;
+    $("sbCodeWhere").textContent = sbCodeOutside ? "anyone can use this" : "only works on this network";
+    $("sbCodeWhere").className = sbCodeOutside ? "small good" : "small warn";
+  }
+  $("sbCopy").onclick = function () {
+    var i = document.createElement("input");
+    i.value = sbCode; document.body.appendChild(i); i.select();
+    document.execCommand("copy"); i.remove();
+    sbSay("station code copied — hand it to whoever should reach you", "live");
+  };
+  $("reachGo").onclick = reachByKey;
+  $("reachFp").addEventListener("keydown", function (e) { if (e.key === "Enter") reachByKey(); });
   $("sbGo").onclick = sbConnect;
   $("sbAddr").value = S.sb || "";
 
@@ -1140,6 +1473,208 @@ body.nudged #app{animation:jolt .45s linear 2}
     return b64(proof);
   }
 
+
+
+  /* ================= Terms of a link ================= */
+  // What this station will accept from the other end. Enforced here, on the
+  // receiving side, so a modified BLACKOUT over there gains nothing by lying.
+  var STRANGER = { text: true, rich: false, files: false, kinds: "images", max: 2, voice: false, video: false, screen: false, nudge: false, mail: true };
+  var OPEN = { text: true, rich: true, files: true, kinds: "any", max: 200, voice: true, video: true, screen: true, nudge: true, mail: true };
+  var allow = JSON.parse(JSON.stringify(STRANGER));   // what we accept on this link
+  var peerAllow = null;                                // what they say they accept
+  var knockOk = true;                                  // an unknown station must be let in first
+
+  S.terms = S.terms || {};
+  S.approved = S.approved || {};
+  function termsFor(fp) {
+    if (fp && S.terms[fp]) return Object.assign({}, STRANGER, S.terms[fp]);   // what you chose for them, stranger or not
+    var known = S.contacts.filter(function (c) { return c.fp === fp; })[0];
+    return JSON.parse(JSON.stringify(known ? OPEN : STRANGER));
+  }
+  function termsWords(t) {
+    var yes = [];
+    yes.push(t.rich ? "messages with formatting" : "plain messages");
+    if (t.files) yes.push("files" + (t.kinds === "images" ? " (pictures only)" : t.kinds === "docs" ? " (pictures and documents)" : "") + " up to " + t.max + " MB");
+    if (t.voice || t.video) yes.push(t.video ? "voice and video" : "voice");
+    if (t.screen) yes.push("screen sharing");
+    if (t.nudge) yes.push("nudges");
+    if (t.mail) yes.push("letters");
+    var no = [];
+    if (!t.files) no.push("files");
+    if (!t.voice && !t.video) no.push("calls");
+    if (!t.screen) no.push("screen sharing");
+    if (!t.nudge) no.push("nudges");
+    if (!t.mail) no.push("letters");
+    return "allowed: " + yes.join(", ") + (no.length ? "  ·  refused: " + no.join(", ") : "");
+  }
+  // Each side refuses what it refuses. What the link permits is what both allow.
+  function agreed() {
+    if (!peerAllow) return;
+    var both = {};
+    ["rich", "files", "voice", "video", "screen", "nudge", "mail"].forEach(function (k) { both[k] = !!(allow[k] && peerAllow[k]); });
+    both.text = true;
+    both.kinds = (allow.kinds === "images" || peerAllow.kinds === "images") ? "images"
+               : (allow.kinds === "docs" || peerAllow.kinds === "docs") ? "docs" : "any";
+    both.max = Math.min(allow.max || 2, peerAllow.max || 2);
+    var d = document.createElement("div");
+    d.className = "contract glow";
+    d.textContent = "AGREED BY BOTH — " + termsWords(both);
+    $("log").appendChild(d); scroll();
+    note("agreed by both: " + termsWords(both), "good");
+    $("bFile").disabled = !both.files || !!relayFp;
+    $("bVoice").disabled = !both.voice || !!relayFp;
+    $("bVideo").disabled = !both.video || !!relayFp;
+    $("bScreen").disabled = !both.screen || !!relayFp;
+    $("bNudge").disabled = !both.nudge;
+  }
+  function contractLine(t) {
+    var d = document.createElement("div");
+    d.className = "contract";
+    d.textContent = "TERMS OF THIS LINK — " + termsWords(t);
+    $("log").appendChild(d); scroll();
+  }
+
+  // Tightening takes effect at once: anything no longer allowed is shut off now.
+  function applyTerms() {
+    if (!allow.files && fileCh) { try { fileCh.close(); } catch (e) {} fileCh = null; incoming = null; }
+    if (!allow.voice && !allow.video && !allow.screen && (local || $("stage").classList.contains("on"))) stopMedia(true);
+  }
+
+  // ── the terms dialog ──
+  var TROWS = [
+    ["rich", "Formatting in messages"],
+    ["files", "Files"],
+    ["voice", "Voice calls"],
+    ["video", "Video calls"],
+    ["screen", "Screen sharing"],
+    ["nudge", "Nudges"],
+    ["mail", "Letters"]
+  ];
+  function openTerms() {
+    var fp = peer.fp, t = fp ? termsFor(fp) : termsFor("");
+    $("tWho").textContent = peer.name || "an unknown station";
+    var box = $("tList"); box.innerHTML = "";
+    TROWS.forEach(function (r) {
+      var l = document.createElement("label");
+      l.innerHTML = '<input type="checkbox"><span></span>';
+      l.children[0].checked = !!t[r[0]];
+      l.children[0].dataset.k = r[0];
+      l.children[1].textContent = r[1];
+      box.appendChild(l);
+    });
+    var extra = document.createElement("div");
+    extra.className = "row";
+    extra.innerHTML = '<span class="small">Files:</span><select id="tKinds"><option value="images">pictures only</option>' +
+      '<option value="docs">pictures and documents</option><option value="any">anything</option></select>' +
+      '<span class="small">up to</span><input id="tMax" type="number" min="1" max="500" style="width:70px"><span class="small">MB</span>';
+    box.appendChild(extra);
+    $("tKinds").value = t.kinds; $("tMax").value = t.max;
+    $("termsBox").hidden = false;
+  }
+  $("termsBtn").onclick = openTerms;
+  function readTerms() {
+    var t = { text: true };
+    $("tList").querySelectorAll("input[type=checkbox]").forEach(function (i) { t[i.dataset.k] = i.checked; });
+    t.kinds = $("tKinds").value; t.max = Math.max(1, Math.min(500, +$("tMax").value || 2));
+    return t;
+  }
+  $("tSave").onclick = function () {
+    var t = readTerms();
+    if (peer.fp) { S.terms[peer.fp] = t; save(); }
+    allow = t; applyTerms();
+    $("termsBox").hidden = true;
+    sys("terms updated — " + termsWords(allow));
+    if (allow.files && ctl && ctl.readyState === "open" && (!fileCh || fileCh.readyState !== "open"))
+      sys("files were refused when this link opened, so they stay off until you connect again. tightening always takes effect at once.");
+    if (ctl && ctl.readyState === "open") send({ t: "terms", terms: allow });
+  };
+  $("tStrict").onclick = function () { allow = JSON.parse(JSON.stringify(STRANGER)); if (peer.fp) { S.terms[peer.fp] = allow; save(); } applyTerms(); $("termsBox").hidden = true; sys("strict terms — " + termsWords(allow)); if (ctl && ctl.readyState === "open") send({ t: "terms", terms: allow }); };
+  $("tOpen").onclick = function () { allow = JSON.parse(JSON.stringify(OPEN)); if (peer.fp) { S.terms[peer.fp] = allow; save(); } $("termsBox").hidden = true; sys("open terms — " + termsWords(allow)); if (ctl && ctl.readyState === "open") send({ t: "terms", terms: allow }); };
+
+  // ── letting an unknown station in ──
+  function fillTerms(boxId, t) {
+    var box = $(boxId); box.innerHTML = "";
+    TROWS.forEach(function (r) {
+      var l = document.createElement("label");
+      l.innerHTML = '<input type="checkbox"><span></span>';
+      l.children[0].checked = !!t[r[0]];
+      l.children[0].dataset.k = r[0];
+      l.children[1].textContent = r[1];
+      box.appendChild(l);
+    });
+    var extra = document.createElement("div");
+    extra.className = "row";
+    extra.innerHTML = '<span class="small">Files:</span><select class="tK"><option value="images">pictures only</option>' +
+      '<option value="docs">pictures and documents</option><option value="any">anything</option></select>' +
+      '<span class="small">up to</span><input class="tM" type="number" min="1" max="500" style="width:70px"><span class="small">MB</span>';
+    box.appendChild(extra);
+    box.querySelector(".tK").value = t.kinds; box.querySelector(".tM").value = t.max;
+  }
+  function pickTerms(boxId) {
+    var box = $(boxId), t = { text: true };
+    box.querySelectorAll("input[type=checkbox]").forEach(function (i) { t[i.dataset.k] = i.checked; });
+    t.kinds = box.querySelector(".tK").value;
+    t.max = Math.max(1, Math.min(500, +box.querySelector(".tM").value || 2));
+    return t;
+  }
+  function knock(name, fp) {
+    knockOk = false;
+    $("kName").textContent = name;
+    $("kFp").textContent = fp;
+    var proposed = termsFor(fp);
+    $("kTerms").textContent = termsWords(proposed);
+    fillTerms("kList", proposed);
+    $("knockBox").hidden = false;
+    tone(520, 220, "sine", .06);
+  }
+  $("kYes").onclick = function () {
+    $("knockBox").hidden = true; knockOk = true;
+    var chosen = pickTerms("kList");
+    if (hailFrom) {
+      var f = hailFrom; hailFrom = null;
+      S.approved[f.fp] = true; S.terms[f.fp] = chosen; save();
+      allow = chosen; hailAccept(f.h, f.fp); return;
+    }
+    if (peer.fp) { S.approved[peer.fp] = true; S.terms[peer.fp] = chosen; save(); }
+    allow = chosen; applyTerms();
+    sys("you let them in under strict terms. press Terms to change what they may send.");
+    contractLine(allow);
+    send({ t: "terms", terms: allow });
+    sys("you are connected to " + (peer.name || "them") + ".");
+  };
+  $("kNo").onclick = function () {
+    $("knockBox").hidden = true;
+    if (hailFrom) { hailFrom = null; sys("you turned them away."); return; }
+    relayFp = null; relayPub = null; knockOk = false;
+    sys("you turned them away.");
+    if (pc) try { pc.close(); } catch (e) {}
+    dropped(); pc = null;
+  };
+
+  // what a file really is, whatever it is called
+  function kindOf(bytes) {
+    var b = new Uint8Array(bytes.slice(0, 12));
+    function m(sig, off) { off = off || 0; for (var i = 0; i < sig.length; i++) if (b[off + i] !== sig[i]) return false; return true; }
+    if (m([0x89, 0x50, 0x4E, 0x47])) return "image";               // png
+    if (m([0xFF, 0xD8, 0xFF])) return "image";                     // jpeg
+    if (m([0x47, 0x49, 0x46, 0x38])) return "image";               // gif
+    if (m([0x52, 0x49, 0x46, 0x46]) && m([0x57, 0x45, 0x42, 0x50], 8)) return "image";  // webp
+    if (m([0x42, 0x4D])) return "image";                           // bmp
+    if (m([0x25, 0x50, 0x44, 0x46])) return "doc";                 // pdf
+    if (m([0x50, 0x4B, 0x03, 0x04])) return "doc";                 // zip, docx, xlsx
+    if (m([0x4D, 0x5A])) return "program";                         // windows program
+    if (m([0x7F, 0x45, 0x4C, 0x46])) return "program";             // linux program
+    if (m([0xCF, 0xFA, 0xED, 0xFE]) || m([0xFE, 0xED, 0xFA, 0xCF])) return "program";   // mac program
+    if (m([0x23, 0x21])) return "script";                          // #!
+    return "other";
+  }
+  function kindAllowed(kind) {
+    if (!allow.files) return false;
+    if (kind === "program" || kind === "script") return allow.kinds === "any";
+    if (allow.kinds === "images") return kind === "image";
+    if (allow.kinds === "docs") return kind === "image" || kind === "doc";
+    return true;
+  }
 
   /* ================= Mail ================= */
   // Letters are sealed to the recipient's key, held by the switchboard until they
@@ -1379,6 +1914,8 @@ body.nudged #app{animation:jolt .45s linear 2}
       if (fromFp !== m.from) return;
       var known = S.contacts.filter(function (c) { return c.fp === fromFp; })[0];
       if (!known || got.body.kind !== "letter") return;
+      var lt = termsFor(fromFp);
+      if (!lt.mail) { sb.send(JSON.stringify({ t: "got", id: m.id })); sys("a letter from " + known.name + " was refused by your terms"); return; }
       await mPut({ id: m.id, folder: "inbox", from: fromFp, fromName: known.name, subject: String(got.body.subject || "").slice(0, 200),
                    html: clean(String(got.body.html || "")), at: got.body.at || m.at, read: false });
       sb.send(JSON.stringify({ t: "got", id: m.id }));
@@ -1405,14 +1942,18 @@ body.nudged #app{animation:jolt .45s linear 2}
       } catch (e) { sbSay("couldn't prove who you are", "bad"); }
       return;
     }
-    if (m.t === "refused") { sbWanted = false; sbSay("refused: " + m.why, "bad"); return; }
+    if (m.t === "refused") { sbWanted = false; sbSay("refused: " + m.why, "bad"); note("the switchboard refused this station: " + m.why + " — this copy of BLACKOUT may be older than the switchboard", "bad"); return; }
     if (m.t === "welcome") {
       var host = new URL(S.sb.replace(/^ws/, "http")).hostname;
       sbStun = host + ":" + m.stun;
-      var note = m.upnp === "open" ? " · reachable at " + m.external
+      var tail = m.upnp === "open" ? " · reachable from outside"
                : m.upnp === "shared address" ? " · outside stations can't reach this one"
                : "";
-      sbSay("on the air" + note, "live");
+      sbSay("on the air" + tail, "live");
+      note("on the air — " + (m.upnp === "open" ? "reachable from outside" : m.upnp === "shared address" ? "your provider shares one address, outside stations can't reach this switchboard" : "router did not open the door; only this network can reach it"), "good");
+      sbCode = m.codeOutside || m.code || "";
+      sbCodeOutside = !!m.outsideKnown;
+      showCode();
       stat(200);
       return;
     }
@@ -1422,7 +1963,16 @@ body.nudged #app{animation:jolt .45s linear 2}
     }
     if (m.t !== "mail") return;
     var got;
-    try { got = await openBox(m.box); } catch (e) { return; }                 // not for us, or tampered
+    try { got = await openBox(m.box); }
+    catch (e) {
+      // a hail: an unsealed hello carrying the sender's key, so strangers can meet
+      var h; try { h = JSON.parse(atob(m.box)); } catch (x) { return; }
+      if (!h || h.kind !== "hail" || !h.pub) return;
+      var hfp = await fingerprint(h.pub);
+      if (hfp !== m.from) return;
+      hailIn(h, hfp);
+      return;
+    }
     // Only the holder of the sender's private key could have sealed this to us,
     // and we only answer people we already know.
     var fromFp = await fingerprint(got.pub);
@@ -1430,26 +1980,101 @@ body.nudged #app{animation:jolt .45s linear 2}
     var known = S.contacts.filter(function (c) { return c.fp === fromFp; })[0];
     if (!known) return;
     var b = got.body;
+    if (b.kind === "relay") {                       // a message carried by the switchboard
+      if (!relayFp) {
+        relayFp = fromFp; relayPub = got.pub; setState("RELAYED"); meter("lock"); armed(true);
+        $("bFile").disabled = true; $("bVoice").disabled = true; $("bVideo").disabled = true; $("bScreen").disabled = true;
+        $("peerName").textContent = "RELAYED: " + known.name;
+        linkOpened(known.name, fromFp, known.pub);
+      }
+      counts.r++; tally(); blip("rx");
+      await ctlMessage(b.m, null);
+      return;
+    }
     if (b.kind === "offer") {
       sys(known.name + " is calling through the switchboard…");
+      target = { fp: fromFp, pub: known.pub, name: known.name };
       newPC(); polite = true;
-      await pc.setRemoteDescription(b.sdp);
+      countTheirs(b.sdp); await pc.setRemoteDescription(b.sdp); watchTry();
       await pc.setLocalDescription(await pc.createAnswer());
       meter("tune"); setState("TUNING");
       await gather();
       var box = await sealTo(known.pub, { kind: "answer", sdp: { type: pc.localDescription.type, sdp: pc.localDescription.sdp } });
       sb.send(JSON.stringify({ t: "to", fp: fromFp, box: box }));
+      note("answered " + known.name + " through the switchboard (" + found.host + " local, " + found.srflx + " public address(es) offered)", "good");
       stat(300);
-    } else if (b.kind === "answer" && pc && pc.signalingState === "have-local-offer") {
-      await pc.setRemoteDescription(b.sdp);
+    } else if (b.kind === "answer") {
+      if (!pc) { note("their answer arrived but there is no attempt running here — ignored", "bad"); return; }
+      if (pc.signalingState !== "have-local-offer") {
+        note("a second answer arrived (already answered) — ignored");
+        return;
+      }
+      try {
+        countTheirs(b.sdp); await pc.setRemoteDescription(b.sdp); watchTry();
+        note("applied their answer — " + theirs.host + " local, " + theirs.srflx + " public address(es) from them", "good");
+      } catch (e) { note("their answer could not be applied: " + e.message, "bad"); }
     }
   }
 
+  // Every link, direct or relayed, goes through this: approval first, then terms.
+  function linkOpened(name, fp, pub) {
+    peer.name = name || peer.name || "UNKNOWN"; peer.fp = fp; peer.pub = pub || peer.pub;
+    allow = termsFor(fp);
+    peerAllow = null;
+    $("kPeerFp").textContent = fp;
+    knockOk = false;
+    knock(peer.name, fp);          // both sides set their own terms before anything passes
+    return false;
+  }
+
+  // Someone we have never met is asking to be introduced.
+  var hailFrom = null;
+  function hailIn(h, fp) {
+    if (S.contacts.filter(function (c) { return c.fp === fp; })[0]) { hailAccept(h, fp, true); return; }
+    hailFrom = { h: h, fp: fp };
+    $("kName").textContent = String(h.name || "UNKNOWN").slice(0, 24);
+    $("kFp").textContent = fp;
+    $("kTerms").textContent = termsWords(STRANGER);
+    $("knockBox").hidden = false;
+    tone(520, 220, "sine", .06);
+    sys("a station you don't know is asking to be introduced");
+  }
+  async function hailAccept(h, fp, quiet) {
+    var name = String(h.name || "UNKNOWN").slice(0, 24);
+    if (!S.contacts.filter(function (c) { return c.fp === fp; })[0]) {
+      S.contacts.push({ name: name, fp: fp, pub: h.pub, last: Date.now() });
+      save(); drawContacts();
+    }
+    if (!h.back) {                                   // answer a first hail once, never answer an answer
+      var box = btoa(JSON.stringify({ kind: "hail", pub: myPub, name: me(), back: true }));
+      try { sb.send(JSON.stringify({ t: "to", fp: fp, box: box })); } catch (e) {}
+    }
+    if (!quiet) sys(name + " added. connecting…");
+    var c = S.contacts.filter(function (x) { return x.fp === fp; })[0];
+    if (!h.back) return;                                   // they hailed us; they will call
+    callVia(c, "audio");
+  }
+  // Reach a station you have never met, using their key.
+  async function reachByKey() {
+    var fp = $("reachFp").value.trim().toUpperCase().replace(/\s+/g, "");
+    if (!/^[0-9A-F]{4}(-[0-9A-F]{4}){7}$/.test(fp)) { sys("that isn't a key fingerprint — it looks like 6B2C-3CBA-…"); return; }
+    if (!sb || sb.readyState !== 1) { sys("connect to a switchboard first"); return; }
+    var known = S.contacts.filter(function (c) { return c.fp === fp; })[0];
+    if (known) { callVia(known, "audio"); return; }
+    var box = btoa(JSON.stringify({ kind: "hail", pub: myPub, name: me() }));
+    sb.send(JSON.stringify({ t: "to", fp: fp, box: box }));
+    sys("asking " + fp.slice(0, 9) + " to be introduced. they have to let you in.");
+  }
+
   // Click a name: link through the switchboard, then ring them.
+  var callingSince = 0, target = null;      // who this attempt is with
   async function callVia(c, kind) {
     if (!sb || sb.readyState !== 1) { sys("connect to a switchboard first"); return; }
     if (ctl && ctl.readyState === "open" && peer.fp === c.fp) { sys("you're already connected to " + c.name + "."); return; }
+    if (Date.now() - callingSince < 45000) return;            // one attempt at a time
+    callingSince = Date.now();
     pendingCall = { fp: c.fp, kind: kind };
+    target = { fp: c.fp, pub: c.pub, name: c.name };
     sys("raising " + c.name + " through the switchboard…");
     newPC(); polite = false;
     wireCtl(pc.createDataChannel("ctl"));
@@ -1459,6 +2084,7 @@ body.nudged #app{animation:jolt .45s linear 2}
     await gather();
     var box = await sealTo(c.pub, { kind: "offer", sdp: { type: pc.localDescription.type, sdp: pc.localDescription.sdp } });
     sb.send(JSON.stringify({ t: "to", fp: c.fp, box: box }));
+    note("called " + c.name + " through the switchboard (" + found.host + " local, " + found.srflx + " public address(es) offered)", "good");
     stat(300);
   }
   window.addEventListener("beforeunload", function () { sbWanted = false; });
@@ -1516,9 +2142,16 @@ body.nudged #app{animation:jolt .45s linear 2}
     ddRead: ["Open it", "Opens the drop, if it was sealed to your key."],
     ringYes: ["Answer", "Picks up the call and turns on your microphone, and your camera for a video call."],
     ringNo: ["Refuse", "Declines the call. The link stays up."],
-    sbAddr: ["Switchboard address", "Where your Switchboard is running, like ws://192.168.1.20:7373. It's shown in the Switchboard's window when it starts."],
+    sbAddr: ["Switchboard", "Paste the station code you were given. An address still works, but nobody needs to type one."],
+    sbCode: ["Your station code", "Hand this out instead of an address. Anyone who types it into their Switchboard box reaches you."],
+    reachFp: ["Reach someone new", "Type the key fingerprint of a station you have never met. They get a knock and decide whether to let you in."],
+    reachGo: ["Reach", "Asks that station to be introduced, through your switchboard."],
+    sbLogBtn: ["Log", "Shows everything that has happened with the switchboard: when it connected, when it dropped, and why."],
+    sbCopyLog: ["Copy log", "Copies the whole switchboard log so you can read it or send it on."],
+    sbCopy: ["Copy", "Copies your station code so you can send it to someone."],
     sbGo: ["Connect", "Puts this station on the air through your Switchboard, so known survivors can call you and you can call them with no codes."],
     sbState: ["Switchboard status", "Whether you're on the air, and whether stations outside your network can reach it."],
+    termsBtn: ["Terms", "What the other station is allowed to send you: formatting, files and their types, calls, screen sharing, nudges and letters. Tightening takes effect at once. Strangers always start strict."],
     mailBtn: ["Mail", "Your inbox. Letters from known survivors wait here, and you can write to anyone you've connected with — even when they're offline."],
     mNew: ["Write", "Opens a new letter."],
     cTo: ["To", "Who it's for. Only known survivors can be written to."],
