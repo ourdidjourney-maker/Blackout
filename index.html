@@ -219,6 +219,13 @@ textarea{resize:vertical;width:100%}
 @supports (-moz-appearance:none){*{scrollbar-width:thin;scrollbar-color:#2f5a3a #050805}}
 
 #tList,#kList{display:grid;gap:4px;margin-top:6px}
+.stRow{display:flex;gap:10px;align-items:center;padding:7px 8px;border-bottom:1px solid var(--faint)}
+.stRow b{font-weight:normal;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stRow .small{white-space:nowrap}
+.stRow.pick{cursor:pointer}
+.stRow.pick:hover{background:#0f1c10}
+#vPane iframe,#vPane img{width:100%;height:100%;border:0;display:block;background:#000;object-fit:contain}
+#vPane pre{margin:0;padding:14px;height:100%;overflow:auto;white-space:pre-wrap;color:#dfeee3}
 #kList label{display:flex;gap:8px;align-items:center;font-size:13px}
 #kList input{width:auto}
 #kList select,#kList input[type=number]{padding:3px 6px;font-size:12px}
@@ -234,6 +241,25 @@ textarea{resize:vertical;width:100%}
 #sbLog .warn{color:var(--amber)}
 .small.warn{color:var(--amber)}
 .small.good{color:var(--ink)}
+
+#shelf{flex:1;display:grid;grid-template-columns:200px 280px 1fr;min-height:0;border-top:1px solid var(--edge)}
+#shelf[hidden]{display:none!important}
+#shFold{border-right:1px solid var(--edge);padding:12px;display:flex;flex-direction:column;gap:6px;background:#050805}
+#shFold .shTab{text-align:left}
+#shFold .shTab.on{border-color:var(--ink);background:#0b150c}
+#shList{border-right:1px solid var(--edge);overflow-y:auto;min-height:0}
+.shRow{padding:10px 12px;border-bottom:1px solid var(--faint);cursor:pointer}
+.shRow:hover{background:#0a120b}
+.shRow.on{background:#0f1c10;box-shadow:inset 3px 0 0 var(--ink)}
+.shName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shMeta{font-size:10.5px;color:var(--dim)}
+#shView{overflow:auto;min-height:0;padding:14px;display:flex;flex-direction:column}
+#shView iframe{flex:1;width:100%;min-height:60vh;border:1px solid var(--edge);background:#fff}
+#shView img{max-width:100%;max-height:78vh;object-fit:contain;align-self:center}
+#shView pre{white-space:pre-wrap;word-break:break-word;background:#0b120c;border:1px solid var(--faint);padding:14px;overflow:auto;font:12.5px/1.6 var(--mono)}
+.shHead{display:flex;gap:10px;align-items:center;margin-bottom:8px;font-size:12px;color:var(--dim)}
+.shHead b{color:var(--ink);font-weight:normal}
+@media (max-width:900px){#shelf{grid-template-columns:1fr}#shFold{flex-direction:row;flex-wrap:wrap}#shList{max-height:26vh}}
 
 /* hover help */
 #tip{position:fixed;z-index:80;max-width:300px;pointer-events:none;opacity:0;transition:opacity .12s;
@@ -345,6 +371,9 @@ body.nudged #app{animation:jolt .45s linear 2}
       <button id="railBtn">&#9776;</button>
       <div id="peerName" class="glow">NO SIGNAL</div>
       <span id="onair"><i></i>ON AIR</span>
+      <button id="stageBtn">Shelf</button>
+      <button id="peerStageBtn" disabled>Their shelf</button>
+      <button id="shelfBtn">Shelf</button>
       <button id="termsBtn">Terms</button>
       <button id="mailBtn">Mail<span id="mailBadge" hidden></span></button>
       <button id="bTune" class="amberBtn">Connect</button>
@@ -421,6 +450,19 @@ body.nudged #app{animation:jolt .45s linear 2}
       <textarea id="tCode" hidden></textarea>
     </div>
 
+    <div id="shelf" hidden>
+      <div id="shFold">
+        <button id="shAdd" class="hot">Put something on the shelf</button>
+        <input id="shFile" type="file" multiple hidden>
+        <button class="shTab on" data-s="mine">My shelf <span id="shNMine"></span></button>
+        <button class="shTab" data-s="theirs">Their shelf <span id="shNTheirs"></span></button>
+        <button id="shPull">Refresh theirs</button>
+        <button id="shBack" style="margin-top:auto">&larr; Back to chat</button>
+      </div>
+      <div id="shList"></div>
+      <div id="shView"><div class="mEmpty">Choose something to view it.</div></div>
+    </div>
+
     <div id="mail" hidden>
       <div id="mFold">
         <button id="mNew" class="hot">Write</button>
@@ -489,6 +531,24 @@ body.nudged #app{animation:jolt .45s linear 2}
     <button id="cDiscard">Discard</button>
     <span id="cNote"></span>
   </div>
+</div></div>
+
+<!-- my shelf -->
+<div class="veil" id="stageBox" hidden><div class="card">
+  <h2 class="glow">MY SHELF</h2>
+  <p class="small" style="margin:0 0 8px">Anything here can be <b>read</b> by stations you allow — never changed, never taken. Pages open with scripts off and no way to reach the network.</p>
+  <div class="row"><button id="stAdd" class="hot">Put something on the shelf</button><input id="stFiles" type="file" multiple hidden><span id="stNote" class="small"></span></div>
+  <div id="stList" style="margin-top:10px;max-height:46vh;overflow-y:auto"></div>
+  <div class="row" style="margin-top:10px"><button class="closeV">Close</button></div>
+</div></div>
+
+<!-- their shelf -->
+<div class="veil" id="viewBox" hidden><div class="card" style="width:min(1000px,96vw)">
+  <h2 class="glow" id="vTitle">THEIR SHELF</h2>
+  <div class="row" style="margin-bottom:8px"><button id="vBack">&larr; Shelf</button><span id="vNote" class="small"></span></div>
+  <div id="vList" style="max-height:50vh;overflow-y:auto"></div>
+  <div id="vPane" hidden style="height:64vh;background:#0b120c;border:1px solid var(--faint)"></div>
+  <div class="row" style="margin-top:10px"><button class="closeV">Close</button></div>
 </div></div>
 
 <!-- an unknown station is calling -->
@@ -975,6 +1035,69 @@ body.nudged #app{animation:jolt .45s linear 2}
           peerAllow = m.terms || {};
           agreed();
           break;
+        case "shelfAsk":
+          if (!knockOk || !allow.shelf) { send({ t: "shelf", items: [], refused: true }); break; }
+          serveList();
+          break;
+        case "shelf":
+          theirShelf = m.items || [];
+          if (m.refused) $("vNote").textContent = "their terms don't allow you to browse their shelf";
+          else drawTheirs();
+          break;
+        case "shelfGet":
+          if (!knockOk || !allow.shelf) break;
+          serveFile(m.id);
+          break;
+        case "shelfStart":
+          grab = { id: m.id, name: m.name, type: m.type, size: m.size, parts: [], got: 0 };
+          break;
+        case "shelfPart":
+          if (!grab || grab.id !== m.id) break;
+          var bin = atob(m.d), arr = new Uint8Array(bin.length);
+          for (var bi = 0; bi < bin.length; bi++) arr[bi] = bin.charCodeAt(bi);
+          grab.parts.push(arr); grab.got += arr.length;
+          $("vNote").textContent = "fetching " + grab.name + " — " + Math.round(grab.got / Math.max(1, grab.size) * 100) + "%";
+          break;
+        case "shelfEnd":
+          if (!grab || grab.id !== m.id) break;
+          if (!m.ok) { $("vNote").textContent = "that is no longer on their shelf"; grab = null; break; }
+          showItem(new Blob(grab.parts, { type: grab.type || "application/octet-stream" }), grab.name, grab.type);
+          $("vNote").textContent = "read only — nothing here can be changed or taken";
+          grab = null;
+          break;
+        case "shelf?":
+          if (!knockOk || !allow.shelf) { send({ t: "shelfList", items: [], off: true }); break; }
+          sAll().then(function (all) {
+            send({ t: "shelfList", items: all.map(function (x) { return { id: x.id, name: x.name, kind: x.kind, size: x.size, at: x.at }; }) });
+          });
+          break;
+        case "shelfList":
+          theirShelf = (m.items || []).slice(0, 200);
+          if (m.off) sys("their terms don't allow you to see their shelf");
+          else sys("their shelf has " + theirShelf.length + " item(s)");
+          if (!$("shelf").hidden) { shelfSide = "theirs"; drawShelf(); }
+          break;
+        case "get":
+          if (!knockOk || !allow.shelf) break;
+          serveItem(m.id);
+          break;
+        case "shelfHead":
+          pulling = { id: m.id, name: m.name, type: m.type, kind: m.kind, size: m.size, parts: m.parts, got: [] };
+          $("shView").innerHTML = '<div class="mEmpty">Fetching ' + esc(m.name) + '…</div>';
+          break;
+        case "shelfPart":
+          if (!pulling || pulling.id !== m.id) break;
+          pulling.got[m.i] = m.d;
+          if (pulling.got.filter(Boolean).length >= pulling.parts) {
+            var whole = unb64(pulling.got.join(""));
+            var got2 = { id: pulling.id, name: pulling.name, type: pulling.type, kind: pulling.kind, size: pulling.size, data: whole.buffer };
+            pulling = null;
+            showItem(got2);
+          }
+          break;
+        case "shelfNo":
+          sys("they no longer have that on their shelf");
+          break;
         case "diag":
           sys("——— " + String(m.who || "their").toUpperCase() + " SIDE REPORTS ———");
           (m.lines || []).slice(0, 12).forEach(function (l) { sys(String(l).slice(0, 160)); note("[them] " + l); });
@@ -1043,6 +1166,7 @@ body.nudged #app{animation:jolt .45s linear 2}
 
   function armed(on) {
     ["bVoice", "bVideo", "bScreen", "bFile", "bNudge", "bCut", "send", "msg"].forEach(function (id) { $(id).disabled = !on; });
+    if (!on) $("peerStageBtn").disabled = true;
   }
   function dropped() {
     callingSince = 0;
@@ -1393,13 +1517,15 @@ body.nudged #app{animation:jolt .45s linear 2}
   function sbSay(t, cls) { var e = $("sbState"); e.textContent = t; e.className = "small" + (cls ? " " + cls : ""); }
 
   function sbConnect() {
-    var addr = $("sbAddr").value.trim();
-    if (!addr) { sbSay("enter the switchboard's address", "bad"); return; }
+    var typed = $("sbAddr").value.trim();
+    var addr = typed || S.sb || "";
+    if (!addr) { sbSay("paste a station code", "bad"); return; }
     if (/^BO/i.test(addr)) {
       var got = fromCode(addr);
       if (!got) { sbSay("that station code isn't right — check it and try again", "bad"); return; }
       addr = got;
     } else if (!/^wss?:\/\//.test(addr)) addr = "ws://" + addr;
+    $("sbAddr").value = "";                     // the box never holds an address
     S.sb = addr; save(); sbWanted = true;
     clearTimeout(sbTimer);
     if (sb) {
@@ -1408,7 +1534,7 @@ body.nudged #app{animation:jolt .45s linear 2}
       try { old.close(); } catch (e) {}
     }
     sbSay("calling the switchboard…");
-    note("calling " + addr + (/^BO/i.test($("sbAddr").value.trim()) ? "  (from station code " + $("sbAddr").value.trim().toUpperCase() + ")" : ""), "warn");
+    note("calling " + addr + (/^BO/i.test(typed) ? "  (from station code " + typed.toUpperCase() + ")" : ""), "warn");
     try { sb = new WebSocket(addr); } catch (e) { sbSay("that address won't work", "bad"); return; }
     sb.onopen = function () {
       sbRetry = 1000; sbSay("proving who you are…");
@@ -1462,7 +1588,7 @@ body.nudged #app{animation:jolt .45s linear 2}
   $("reachGo").onclick = reachByKey;
   $("reachFp").addEventListener("keydown", function (e) { if (e.key === "Enter") reachByKey(); });
   $("sbGo").onclick = sbConnect;
-  $("sbAddr").value = S.sb || "";
+  $("sbAddr").value = "";
 
   // Answer the switchboard's challenge with a code only our private key can make.
   async function prove(m) {
@@ -1478,8 +1604,8 @@ body.nudged #app{animation:jolt .45s linear 2}
   /* ================= Terms of a link ================= */
   // What this station will accept from the other end. Enforced here, on the
   // receiving side, so a modified BLACKOUT over there gains nothing by lying.
-  var STRANGER = { text: true, rich: false, files: false, kinds: "images", max: 2, voice: false, video: false, screen: false, nudge: false, mail: true };
-  var OPEN = { text: true, rich: true, files: true, kinds: "any", max: 200, voice: true, video: true, screen: true, nudge: true, mail: true };
+  var STRANGER = { text: true, rich: false, files: false, kinds: "images", max: 2, voice: false, video: false, screen: false, nudge: false, mail: true, shelf: false };
+  var OPEN = { text: true, rich: true, files: true, kinds: "any", max: 200, voice: true, video: true, screen: true, nudge: true, mail: true, shelf: true };
   var allow = JSON.parse(JSON.stringify(STRANGER));   // what we accept on this link
   var peerAllow = null;                                // what they say they accept
   var knockOk = true;                                  // an unknown station must be let in first
@@ -1499,19 +1625,21 @@ body.nudged #app{animation:jolt .45s linear 2}
     if (t.screen) yes.push("screen sharing");
     if (t.nudge) yes.push("nudges");
     if (t.mail) yes.push("letters");
+    if (t.shelf) yes.push("reading your shelf");
     var no = [];
     if (!t.files) no.push("files");
     if (!t.voice && !t.video) no.push("calls");
     if (!t.screen) no.push("screen sharing");
     if (!t.nudge) no.push("nudges");
     if (!t.mail) no.push("letters");
+    if (!t.shelf) no.push("your shelf");
     return "allowed: " + yes.join(", ") + (no.length ? "  ·  refused: " + no.join(", ") : "");
   }
   // Each side refuses what it refuses. What the link permits is what both allow.
   function agreed() {
     if (!peerAllow) return;
     var both = {};
-    ["rich", "files", "voice", "video", "screen", "nudge", "mail"].forEach(function (k) { both[k] = !!(allow[k] && peerAllow[k]); });
+    ["rich", "files", "voice", "video", "screen", "nudge", "mail", "shelf"].forEach(function (k) { both[k] = !!(allow[k] && peerAllow[k]); });
     both.text = true;
     both.kinds = (allow.kinds === "images" || peerAllow.kinds === "images") ? "images"
                : (allow.kinds === "docs" || peerAllow.kinds === "docs") ? "docs" : "any";
@@ -1526,6 +1654,7 @@ body.nudged #app{animation:jolt .45s linear 2}
     $("bVideo").disabled = !both.video || !!relayFp;
     $("bScreen").disabled = !both.screen || !!relayFp;
     $("bNudge").disabled = !both.nudge;
+    $("peerStageBtn").disabled = !peerAllow.shelf;
   }
   function contractLine(t) {
     var d = document.createElement("div");
@@ -1548,7 +1677,8 @@ body.nudged #app{animation:jolt .45s linear 2}
     ["video", "Video calls"],
     ["screen", "Screen sharing"],
     ["nudge", "Nudges"],
-    ["mail", "Letters"]
+    ["mail", "Letters"],
+    ["shelf", "Let them read my shelf"]
   ];
   function openTerms() {
     var fp = peer.fp, t = fp ? termsFor(fp) : termsFor("");
@@ -1674,6 +1804,297 @@ body.nudged #app{animation:jolt .45s linear 2}
     if (allow.kinds === "images") return kind === "image";
     if (allow.kinds === "docs") return kind === "image" || kind === "doc";
     return true;
+  }
+
+
+  /* ================= The shelf =================
+     Files you put out for others to read. They are sent on request, in
+     pieces, over whatever route the link is using — direct or relayed — and
+     opened in a sealed frame that cannot run scripts or reach the network. */
+  var sdb = null;
+  function sOpen() {
+    return new Promise(function (res) {
+      if (sdb) return res(sdb);
+      var r = indexedDB.open("blackoutShelf", 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore("files", { keyPath: "id" }); };
+      r.onsuccess = function () { sdb = r.result; res(sdb); };
+      r.onerror = function () { res(null); };
+    });
+  }
+  function sTx(mode) { return sdb.transaction("files", mode).objectStore("files"); }
+  async function sPut(rec) { await sOpen(); return new Promise(function (r) { var q = sTx("readwrite").put(rec); q.onsuccess = q.onerror = function () { r(); }; }); }
+  async function sAll() { await sOpen(); return new Promise(function (r) { var q = sTx("readonly").getAll(); q.onsuccess = function () { r(q.result || []); }; q.onerror = function () { r([]); }; }); }
+  async function sGet(id) { await sOpen(); return new Promise(function (r) { var q = sTx("readonly").get(id); q.onsuccess = function () { r(q.result); }; q.onerror = function () { r(null); }; }); }
+  async function sDel(id) { await sOpen(); return new Promise(function (r) { var q = sTx("readwrite").delete(id); q.onsuccess = q.onerror = function () { r(); }; }); }
+
+  $("stageBtn").onclick = function () { $("stageBox").hidden = false; drawShelf(); };
+  $("stAdd").onclick = function () { $("stFiles").value = ""; $("stFiles").click(); };
+  $("stFiles").onchange = async function () {
+    for (var i = 0; i < this.files.length; i++) {
+      var f = this.files[i];
+      if (f.size > 40 * 1024 * 1024) { $("stNote").textContent = f.name + " is too big for the shelf (40 MB limit)."; continue; }
+      await sPut({ id: Math.random().toString(36).slice(2) + Date.now().toString(36), name: f.name, type: f.type || "application/octet-stream", size: f.size, blob: f, at: Date.now() });
+    }
+    $("stNote").textContent = "";
+    drawShelf();
+  };
+  async function drawShelf() {
+    var all = await sAll(), box = $("stList");
+    box.innerHTML = "";
+    if (!all.length) { box.innerHTML = '<div class="small" style="padding:10px">The shelf is empty.</div>'; return; }
+    all.sort(function (a, b) { return b.at - a.at; }).forEach(function (r) {
+      var d = document.createElement("div");
+      d.className = "stRow";
+      d.innerHTML = '<b></b><span class="small"></span><button class="warn">&times;</button>';
+      d.children[0].textContent = r.name;
+      d.children[1].textContent = human(r.size) + "  ·  " + (r.type || "file");
+      d.children[2].onclick = async function () { await sDel(r.id); drawShelf(); };
+      box.appendChild(d);
+    });
+  }
+
+  // ── serving the shelf ──
+  var CH = 48 * 1024;
+  async function serveList() {
+    var all = await sAll();
+    send({ t: "shelf", items: all.map(function (r) { return { id: r.id, name: r.name, type: r.type, size: r.size }; }) });
+  }
+  async function serveFile(id) {
+    var r = await sGet(id);
+    if (!r) { send({ t: "shelfEnd", id: id, ok: false }); return; }
+    var buf = new Uint8Array(await r.blob.arrayBuffer());
+    send({ t: "shelfStart", id: id, name: r.name, type: r.type, size: buf.length });
+    for (var off = 0; off < buf.length; off += CH) {
+      var part = buf.subarray(off, off + CH), bin = "";
+      for (var i = 0; i < part.length; i++) bin += String.fromCharCode(part[i]);
+      send({ t: "shelfPart", id: id, d: btoa(bin) });
+      await new Promise(function (r2) { setTimeout(r2, 12); });        // let the link breathe
+    }
+    send({ t: "shelfEnd", id: id, ok: true });
+  }
+
+  // ── reading someone else's shelf ──
+  var theirShelf = [], grab = null;
+  $("peerStageBtn").onclick = function () {
+    if (!knockOk) return;
+    $("viewBox").hidden = false; $("vPane").hidden = true; $("vList").hidden = false;
+    $("vTitle").textContent = (peer.name || "THEIR") + "'S SHELF";
+    $("vNote").textContent = "asking…";
+    send({ t: "shelfAsk" });
+  };
+  $("vBack").onclick = function () { $("vPane").hidden = true; $("vPane").innerHTML = ""; $("vList").hidden = false; };
+  function drawTheirs() {
+    var box = $("vList"); box.innerHTML = "";
+    $("vNote").textContent = theirShelf.length ? "read only — nothing here can be changed or taken" : "";
+    if (!theirShelf.length) { box.innerHTML = '<div class="small" style="padding:10px">Their shelf is empty.</div>'; return; }
+    theirShelf.forEach(function (it) {
+      var d = document.createElement("div");
+      d.className = "stRow pick";
+      d.innerHTML = '<b></b><span class="small"></span>';
+      d.children[0].textContent = it.name;
+      d.children[1].textContent = human(it.size) + "  ·  " + (it.type || "file");
+      d.onclick = function () {
+        grab = { id: it.id, name: it.name, type: it.type, parts: [], got: 0, size: it.size };
+        $("vNote").textContent = "fetching " + it.name + "…";
+        send({ t: "shelfGet", id: it.id });
+      };
+      box.appendChild(d);
+    });
+  }
+  function showItem(blob, name, type) {
+    $("vList").hidden = true; $("vPane").hidden = false;
+    var pane = $("vPane"); pane.innerHTML = "";
+    var url = URL.createObjectURL(blob);
+    if (/^image\//.test(type)) { var im = new Image(); im.src = url; pane.appendChild(im); return; }
+    if (/^video\//.test(type)) { var v = document.createElement("video"); v.src = url; v.controls = true; v.style.cssText = "width:100%;height:100%;background:#000"; pane.appendChild(v); return; }
+    if (/^audio\//.test(type)) { var a = document.createElement("audio"); a.src = url; a.controls = true; a.style.cssText = "width:100%;margin-top:40%"; pane.appendChild(a); return; }
+    if (/pdf$/i.test(type) || /\.pdf$/i.test(name)) { var f2 = document.createElement("iframe"); f2.src = url; pane.appendChild(f2); return; }
+    if (/^text\/html/i.test(type) || /\.html?$/i.test(name)) {
+      blob.text().then(function (t) {
+        var f3 = document.createElement("iframe");
+        f3.setAttribute("sandbox", "");                 // no scripts, no forms, nothing reaching out
+        f3.srcdoc = t;
+        pane.appendChild(f3);
+      });
+      return;
+    }
+    blob.text().then(function (t) {
+      var p = document.createElement("pre");
+      p.textContent = t.slice(0, 400000);
+      pane.appendChild(p);
+    });
+  }
+
+
+  /* ================= The shelf =================
+     Things you put out for others to READ. Nobody can alter them, and a staged
+     page is shown with scripts off and no way to reach the network. */
+  var sdb = null, shelfSide = "mine", shelfOpen = null, theirShelf = [], pulling = null;
+  function shOpen() {
+    return new Promise(function (res) {
+      if (sdb) return res(sdb);
+      var r = indexedDB.open("blackoutShelf", 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore("items", { keyPath: "id" }); };
+      r.onsuccess = function () { sdb = r.result; res(sdb); };
+      r.onerror = function () { res(null); };
+    });
+  }
+  function sTx(mode) { return sdb.transaction("items", mode).objectStore("items"); }
+  async function sPut(o) { await shOpen(); return new Promise(function (r) { var q = sTx("readwrite").put(o); q.onsuccess = q.onerror = function () { r(); }; }); }
+  async function sGet(id) { await shOpen(); return new Promise(function (r) { var q = sTx("readonly").get(id); q.onsuccess = function () { r(q.result); }; q.onerror = function () { r(null); }; }); }
+  async function sAll() { await shOpen(); return new Promise(function (r) { var q = sTx("readonly").getAll(); q.onsuccess = function () { r(q.result || []); }; q.onerror = function () { r([]); }; }); }
+  async function sDel(id) { await shOpen(); return new Promise(function (r) { var q = sTx("readwrite").delete(id); q.onsuccess = q.onerror = function () { r(); }; }); }
+
+  function shelfView(on) {
+    $("shelf").hidden = !on;
+    ["log", "typing", "compose", "tune", "stage", "mail"].forEach(function (id) { var e = $(id); if (e) e.style.display = on ? "none" : ""; });
+    if (on) drawShelf();
+  }
+  $("shelfBtn").onclick = function () { shelfView($("shelf").hidden); };
+  $("shBack").onclick = function () { shelfView(false); };
+  document.querySelectorAll(".shTab").forEach(function (b) {
+    b.onclick = function () {
+      shelfSide = b.dataset.s; shelfOpen = null;
+      document.querySelectorAll(".shTab").forEach(function (x) { x.classList.toggle("on", x === b); });
+      $("shView").innerHTML = '<div class="mEmpty">Choose something to view it.</div>';
+      drawShelf();
+      if (shelfSide === "theirs" && !theirShelf.length) askShelf();
+    };
+  });
+
+  $("shAdd").onclick = function () { $("shFile").value = ""; $("shFile").click(); };
+  $("shFile").onchange = async function () {
+    var done = [];
+    for (var i = 0; i < this.files.length; i++) { if (await stage(this.files[i])) done.push(this.files[i].name); }
+    drawShelf();
+    if (done.length) {
+      sys("on the shelf now: " + done.join(", "));
+      $("shView").innerHTML = '<div class="mEmpty">Added ' + esc(done.join(", ")) + ' to your shelf. Anyone you allow can read it.</div>';
+      tone(980, 90, "sine", .05);
+    }
+  };
+  function kindOfItem(it) { return it.kind || kindFor(it.name || "", it.type || ""); }
+  function kindFor(name, type) {
+    if (/^image\//.test(type)) return "image";
+    if (/html?$/i.test(name) || /html/.test(type)) return "page";
+    if (type === "application/pdf" || /\.pdf$/i.test(name)) return "pdf";
+    if (/^text\//.test(type) || /\.(txt|md|csv|json|js|css|log)$/i.test(name)) return "text";
+    return "file";
+  }
+  async function stage(f) {
+    if (f.size > 20 * 1024 * 1024) { sys(f.name + " is too big for the shelf (20 MB limit)"); return; }
+    var buf = await f.arrayBuffer();
+    await sPut({ id: Math.random().toString(36).slice(2) + Date.now().toString(36), name: f.name,
+                 type: f.type || "application/octet-stream", kind: kindFor(f.name, f.type || ""), size: f.size,
+                 at: Date.now(), data: buf });
+    return true;
+  }
+
+  function askShelf() {
+    if (!send({ t: "shelf?" })) { sys("connect to someone first"); return; }
+    $("shList").innerHTML = '<div class="mEmpty">Asking for their shelf…</div>';
+  }
+  $("shPull").onclick = function () { shelfSide = "theirs"; askShelf(); };
+
+  var SH_PIECE = 48 * 1024;
+  async function serveItem(id) {
+    var it = await sGet(id);
+    if (!it) { send({ t: "shelfNo", id: id }); return; }
+    var b64s = b64(it.data), n = Math.ceil(b64s.length / SH_PIECE);
+    send({ t: "shelfHead", id: id, name: it.name, type: it.type, kind: it.kind, size: it.size, parts: n });
+    for (var i = 0; i < n; i++) {
+      send({ t: "shelfPart", id: id, i: i, d: b64s.slice(i * SH_PIECE, (i + 1) * SH_PIECE) });
+      await new Promise(function (r) { setTimeout(r, 8); });
+    }
+  }
+
+  // Viewing only. A staged page runs in a sealed frame: no scripts, no network,
+  // no access to anything around it.
+  async function showItem(it) {
+    shelfOpen = it.id;
+    var V = $("shView"); V.innerHTML = "";
+    var head = document.createElement("div");
+    head.className = "shHead";
+    head.innerHTML = '<b></b><span></span>';
+    head.children[0].textContent = it.name;
+    head.children[1].textContent = it.kind + " · " + human(it.size) + " · view only";
+    V.appendChild(head);
+    if (shelfSide === "mine") {
+      var rm = document.createElement("button");
+      rm.className = "warn"; rm.textContent = "Take off the shelf";
+      rm.onclick = async function () {
+        if (!rm.armed) { rm.armed = true; rm.textContent = "sure?"; setTimeout(function () { rm.armed = false; rm.textContent = "Take off the shelf"; }, 3000); return; }
+        await sDel(it.id); shelfOpen = null; V.innerHTML = '<div class="mEmpty">Taken off the shelf.</div>'; drawShelf();
+      };
+      head.appendChild(rm);
+    }
+    var kind = kindOfItem(it);
+    head.children[1].textContent = kind + " · " + human(it.size) + " · view only";
+    var blob = new Blob([it.data], { type: it.type });
+    if (kind === "page") {
+      var txt = new TextDecoder().decode(it.data);
+      var f2 = document.createElement("iframe");
+      f2.setAttribute("sandbox", "");
+      f2.setAttribute("referrerpolicy", "no-referrer");
+      f2.srcdoc = txt;
+      V.appendChild(f2);
+      var src = document.createElement("button");
+      src.textContent = "Show the code";
+      src.onclick = function () {
+        if (src.showing) { src.showing = false; src.textContent = "Show the code"; f2.hidden = false; pre2.hidden = true; return; }
+        src.showing = true; src.textContent = "Show the page"; f2.hidden = true; pre2.hidden = false;
+      };
+      head.appendChild(src);
+      var pre2 = document.createElement("pre");
+      pre2.textContent = txt.slice(0, 400000); pre2.hidden = true;
+      V.appendChild(pre2);
+      drawShelf();
+      return;
+    }
+    if (kind === "image") {
+      var img = document.createElement("img"); img.src = URL.createObjectURL(blob); img.alt = it.name; V.appendChild(img);
+    } else if (kind === "pdf") {
+      var f = document.createElement("iframe");
+      f.setAttribute("sandbox", "");                       // nothing runs, nothing reaches out
+      f.setAttribute("referrerpolicy", "no-referrer");
+      f.src = URL.createObjectURL(blob);
+      V.appendChild(f);
+    } else if (kind === "text" || kind === "file") {
+      var pre = document.createElement("pre");
+      pre.textContent = new TextDecoder().decode(it.data).slice(0, 400000);
+      V.appendChild(pre);
+    } else {
+      var p = document.createElement("div"); p.className = "mEmpty";
+      p.textContent = "This kind of file can only be listed, not shown.";
+      V.appendChild(p);
+    }
+    drawShelf();
+  }
+
+  async function drawShelf() {
+    var mine = await sAll();
+    $("shNMine").textContent = mine.length ? "(" + mine.length + ")" : "";
+    $("shNTheirs").textContent = theirShelf.length ? "(" + theirShelf.length + ")" : "";
+    var list = shelfSide === "mine" ? mine.sort(function (a, b) { return b.at - a.at; }) : theirShelf;
+    var box = $("shList"); box.innerHTML = "";
+    if (!list.length) {
+      box.innerHTML = '<div class="mEmpty">' + (shelfSide === "mine"
+        ? "Nothing on your shelf yet. Put a page, picture or document here and anyone you allow can read it."
+        : "Nothing here. Connect to someone and press Refresh theirs.") + "</div>";
+      return;
+    }
+    list.forEach(function (it) {
+      var r = document.createElement("div");
+      r.className = "shRow" + (shelfOpen === it.id ? " on" : "");
+      r.innerHTML = '<div class="shName"></div><div class="shMeta"></div>';
+      r.children[0].textContent = it.name;
+      r.children[1].textContent = it.kind + " · " + human(it.size);
+      r.onclick = function () {
+        if (shelfSide === "theirs" && !it.data) { shelfOpen = it.id; send({ t: "get", id: it.id }); drawShelf(); return; }
+        showItem(it);
+      };
+      box.appendChild(r);
+    });
   }
 
   /* ================= Mail ================= */
@@ -2151,6 +2572,11 @@ body.nudged #app{animation:jolt .45s linear 2}
     sbCopy: ["Copy", "Copies your station code so you can send it to someone."],
     sbGo: ["Connect", "Puts this station on the air through your Switchboard, so known survivors can call you and you can call them with no codes."],
     sbState: ["Switchboard status", "Whether you're on the air, and whether stations outside your network can reach it."],
+    stageBtn: ["My shelf", "Put files out for others to read: pages, pictures, documents, anything. They can look, never change or take. Nothing is shared until your terms allow it."],
+    peerStageBtn: ["Their shelf", "Read what the other station has put out. Opens here, read only — pages run with scripts off and no way to reach the network."],
+    shelfBtn: ["Shelf", "Things you put out for others to read: pages, pictures, documents. They can view them, never change or keep them. Whether anyone may read your shelf is part of the terms."],
+    shAdd: ["Put something on the shelf", "Adds a file from this machine to your shelf so people you allow can read it."],
+    shPull: ["Refresh theirs", "Asks the station you are connected to for a list of what is on their shelf."],
     termsBtn: ["Terms", "What the other station is allowed to send you: formatting, files and their types, calls, screen sharing, nudges and letters. Tightening takes effect at once. Strangers always start strict."],
     mailBtn: ["Mail", "Your inbox. Letters from known survivors wait here, and you can write to anyone you've connected with — even when they're offline."],
     mNew: ["Write", "Opens a new letter."],
