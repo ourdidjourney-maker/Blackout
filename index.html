@@ -2029,7 +2029,16 @@ body.nudged #app{animation:jolt .45s linear 2}
       head.appendChild(rm);
     }
     var kind = kindOfItem(it);
+    var bytes = it.data ? (it.data.byteLength || it.data.size || 0) : 0;
     head.children[1].textContent = kind + " · " + human(it.size) + " · view only";
+    if (!bytes) {                       // staged before the shelf kept contents properly
+      var warn = document.createElement("div");
+      warn.className = "mEmpty";
+      warn.textContent = "This one was put on the shelf before the shelf was working properly, so its contents were never kept. Take it off and add it again.";
+      V.appendChild(warn);
+      drawShelf();
+      return;
+    }
     var blob = new Blob([it.data], { type: it.type });
     if (kind === "page") {
       var txt = new TextDecoder().decode(it.data);
@@ -2088,7 +2097,8 @@ body.nudged #app{animation:jolt .45s linear 2}
       r.className = "shRow" + (shelfOpen === it.id ? " on" : "");
       r.innerHTML = '<div class="shName"></div><div class="shMeta"></div>';
       r.children[0].textContent = it.name;
-      r.children[1].textContent = it.kind + " · " + human(it.size);
+      r.children[1].textContent = kindOfItem(it) + " · " + human(it.size) +
+        (shelfSide === "mine" && it.data && !(it.data.byteLength || it.data.size) ? " · empty, add again" : "");
       r.onclick = function () {
         if (shelfSide === "theirs" && !it.data) { shelfOpen = it.id; send({ t: "get", id: it.id }); drawShelf(); return; }
         showItem(it);
